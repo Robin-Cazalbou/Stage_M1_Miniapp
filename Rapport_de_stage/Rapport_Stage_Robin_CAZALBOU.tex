@@ -1,0 +1,207 @@
+\documentclass[11pt,a4paper,oneside]{memoir}
+
+\usepackage[utf8]{inputenc} 
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb,amsthm,amsfonts}
+\usepackage{url,color}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{calc}
+\usepackage{hyperref}
+
+\geometry{hmargin=2cm,vmargin=2.5cm}
+
+\setcounter{secnumdepth}{10}
+\setcounter{tocdepth}{10}
+
+
+%c'est pour avoir N, Z, Q, R, C
+\newcommand{\R}{\mathbb{R}}	\newcommand{\Q}{\mathbb{Q}}	\newcommand{\C}{\mathbb{C}}
+\newcommand{\N}{\mathbb{N}}	\newcommand{\Z}{\mathbb{Z}}
+
+
+\theoremstyle{definition}
+\newtheorem{definition}{Définition}
+
+\theoremstyle{remark}
+\newtheorem*{remarque*}{{Remarque}}
+
+\theoremstyle{plain}
+\newtheorem{proposition}{{Proposition}}
+\newtheorem*{proposition*}{{Proposition}}
+\newtheorem{theorem}{{Théorème}}
+
+
+
+%\title{}
+%\author{}
+%\date{}
+
+
+\begin{document}
+%\maketitle
+
+
+% ------------- Page de garde ------------------
+\thispagestyle{empty}
+
+\begin{minipage}{.47\textwidth}
+\centering
+\begin{flushleft}
+\includegraphics[scale=0.25]{./Images-Rapport/logo_uvsq.jpeg}
+\end{flushleft}
+\end{minipage}
+\begin{minipage}{.47\textwidth}
+\centering
+\begin{flushright}
+\hspace*{1cm} \includegraphics[scale=0.9]{./Images-Rapport/logo_saclay.jpeg}
+\end{flushright}
+\end{minipage}
+
+
+\begin{center}
+\huge
+\textbf{Master 1\\ Calcul Haute Performance et Simulation}
+\end{center}
+
+
+\begin{center}
+  \vspace*{\stretch{3}}
+  \hrule
+  \hrule
+  ~\\
+  \begin{center}
+    \huge
+    \textbf{Rapport de stage}\\
+    \bigskip
+    \textbf{\'Evaluation de performances via des mini-applications}\\
+  \end{center}
+  ~\\
+  \hrule
+  \hrule
+\end{center}
+
+\vspace*{\stretch{2}}
+
+\begin{center}
+	\Large
+	\textsc{\textbf{Stagiaire :}}\\
+	\textsc{Robin CAZALBOU}\\
+	~ \\
+	\textsc{\textbf{Encadrant universitaire :}}\\
+	\textsc{Pablo OLIVEIRA}\\
+	~ \\
+	\textsc{\textbf{Tuteur du Centre Borelli :}}\\
+	\textsc{Fikri HAFID}\\
+\end{center}
+
+\begin{center}
+\includegraphics[scale=0.22]{./Images-Rapport/logo_centre_borelli.png}
+\end{center}
+
+\vspace*{\stretch{5}}
+
+\begin{center}
+\textsc{\textbf{Année universitaire 2020-2021}}
+\end{center}
+
+% ----------------------------------------------
+
+
+
+
+
+\newpage
+\tableofcontents
+
+
+
+\begin{vplace}[0.5]
+
+\chapter*{Remerciements}
+\addcontentsline{toc}{chapter}{Remerciements}
+
+% texte à écrire ici
+
+\end{vplace}
+
+
+
+
+\begin{vplace}[0.5]
+
+\chapter*{Introduction}
+\addcontentsline{toc}{chapter}{Introduction}
+
+% texte à écrire ici
+
+% ajouter dates du stage + conditions en distanciel
+
+\end{vplace}
+
+
+
+
+
+
+
+
+
+
+
+\newpage
+
+% nouveau chapitre
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\begin{vplace}[0.5]
+
+\chapter*{Conclusion}
+\addcontentsline{toc}{chapter}{Conclusion}
+
+
+
+\end{vplace}
+
+
+
+
+
+
+
+\begin{vplace}
+\chapter*{Annexe}
+\addcontentsline{toc}{chapter}{Annexe}
+
+% texte à écrire ici
+
+\end{vplace}
+
+
+
+
+\nocite{*}
+\bibliographystyle{plain}
+\bibliography{Biblio_Stage_Robin_CAZALBOU}
+
+\end{document}
