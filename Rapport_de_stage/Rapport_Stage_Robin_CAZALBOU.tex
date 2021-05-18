@@ -126,26 +126,27 @@
 \addcontentsline{toc}{chapter}{Remerciements}
 
 % texte à écrire ici
-
-\end{vplace}
-
+% fusionner remerciements et introduction
 
 
 
-\begin{vplace}[0.5]
 
 \chapter*{Introduction}
 \addcontentsline{toc}{chapter}{Introduction}
 
 % texte à écrire ici
+Ce rapport tient compte des travaux que j'ai réalisé durant mon stage optionnel de fin de master 1 au centre Borelli de l'université Paris Saclay et de l'ENS Paris Saclay. Il fut réalisé sur la période du 17 mai au 28 août 2021, sous la tutelle de M. Fikri HAFID, chercheur au laboratoire du centre Borelli. \bigskip
+~\bigskip
 
-% ajouter dates du stage + conditions en distanciel
+% travail en distanciel et en présentiel ?
+% ressenti de ce que j'ai pu faire globalement pendant ce stage (premier résumé)
+
+Le cœur de mon travail a consisté en l'étude des mini-applications d'une point de vue Calcul Haute Performance.
+
+% ce que j'ai appris
+
 
 \end{vplace}
-
-
-
-
 
 
 
@@ -155,7 +156,46 @@
 
 \newpage
 
-% nouveau chapitre
+
+\chapter{\'Etat de l'art des mini-applications}
+
+Dans un premier temps, faisons un premier tour d'horizon des mini-applications (que nous appellerons aussi miniapps).
+
+\section{Qu'est ce qu'une miniapp ?}
+
+Une mini-application est définie comme un code de calcul de petite taille (quelques milliers de lignes de code), compilé à partir d'un Makefile simple, cela dans le but de permettre une compréhension plus rapide de l'anatomie interne du code de la part des développeurs \cite{sandia2009}. Ces codes opensource ont pour objectif d'effectuer des simulations simples de problèmes physiques à partir de cœurs d'algorithme de calculs.
+
+Ainsi, la plupart des mini-applications sont obtenues à partir de code de plus grande envergure (par exemple miniXyce, qui simule des circuits électriques, est issue du code Xyce qui comporte plus de 500.000 lignes de codes \cite{sandia2009}). Cependant, contrairement à leur homologue de grande taille, les miniapps n'ont pas pour objectif principal de simuler des problèmes physiques complexes ou inatteignable analytiquement. En effet, la validation des résultats se fait par l'intermédiaire de solutions calculées de façon exacte. L'intérêt sur le résultat à proprement parler est donc infime.\bigskip
+
+Afin d'être utiles à plusieurs acteurs du monde de la simulation et du Calcul haute performance, ces miniapps se présentent sous la forme simplifiée d'un ou plusieurs \underline{cœurs de calcul numérique}, chacun centré sur une étape clé de l'algorithme global. Par exemple, dans le cas de la mini-application miniFE (pour "mini Finite Elements"), l'étude est centrée sur une méthode des éléments finis, et plus particulièrement sur l'application d'un algorithme de gradient conjugué, qui peut faire l'objet de nombreuses améliorations.
+
+Ces miniapps ont ainsi plusieurs objectifs :
+\begin{itemize}
+\item permettre aux développeurs HPC et aux numériciens de proposer des méthodes innovantes de communications au sein de l'algorithme, en écartant toutes les données superflues et en permettant une large marge de manœuvre pour effectuer des modifications,
+\item permettre d'évaluer les performances d'une architecture de cluster de calcul en considérant la miniapp comme un benchmark simplifié,
+\item permettre d'effectuer les modifications du code en conséquences afin de faire concorder matériel et algorithme.
+\end{itemize}\bigskip
+
+Du fait de la grande diversité des origines des problèmes physiques, ainsi que des approches numériques pour les résoudre, le champs des mini-applications est très vaste. Le Sandia National Laboratories fut un des initiateurs du concept de mini-application et au travers notamment du projet Mantevo \cite{mantevo-project}, de nombreuses miniapp furent conçues.
+
+
+\section{Conception et analyse d'une miniapp}
+
+
+
+% conception miniapps : partir d'un code complexe et extraire le coeur de ce qui fait le calcul, sa lenteur et les principales communications parallèles, son interaction avec le matériel
+
+
+
+\section{Présentation de quelques miniapps}
+
+% présenter miniFE + présenter une autre appli qui me plait/n'a pas été trop étudiée/a été étudiée et je peux reproduire les résultats
+
+\section{Intérêt pour le HPC}
+
+% présenter les différentes approches en détaillées, les quantités qui varient, les architectures qui sont étudiées, les implémentations MPI+OpenMP, etc... cf la biblio
+
+
 
 
 
