@@ -165,7 +165,9 @@ Dans un premier temps, faisons un premier tour d'horizon des mini-applications (
 
 Une mini-application est définie comme un code de calcul de petite taille (quelques milliers de lignes de code), compilé à partir d'un Makefile simple, cela dans le but de permettre une compréhension plus rapide de l'anatomie interne du code de la part des développeurs \cite{sandia2009}. Ces codes opensource ont pour objectif d'effectuer des simulations simples de problèmes physiques à partir de cœurs d'algorithme de calculs.
 
-Ainsi, la plupart des mini-applications sont obtenues à partir de code de plus grande envergure (par exemple miniXyce, qui simule des circuits électriques, est issue du code Xyce qui comporte plus de 500.000 lignes de codes \cite{sandia2009}). Cependant, contrairement à leur homologue de grande taille, les miniapps n'ont pas pour objectif principal de simuler des problèmes physiques complexes ou inatteignable analytiquement. En effet, la validation des résultats se fait par l'intermédiaire de solutions calculées de façon exacte. L'intérêt sur le résultat à proprement parler est donc infime.\bigskip
+Ainsi, la plupart des mini-applications sont obtenues à partir de code de plus grande envergure (par exemple miniXyce, qui simule des circuits électriques, est issue du code Xyce qui comporte plus de 500.000 lignes de codes \cite{sandia2009}). Cependant, contrairement à leur homologue de grande taille, les miniapps n'ont pas pour objectif principal de simuler des problèmes physiques complexes ou inatteignable analytiquement. En effet, la validation des résultats se fait par l'intermédiaire de solutions calculées de façon exacte. L'intérêt sur le résultat à proprement parler est donc infime.
+
+Par ailleurs, les données obtenues après l'exécution du code sont contenues dans des fichiers au format YAML \cite{yaml}, qui possède l'avantage d'être lisible par un humain tout en stockant les informations pour une possible base de données. Des librairies de conception de fichiers au format YAML sont disponibles pour de nombreux langages de programmation.\bigskip
 
 Afin d'être utiles à plusieurs acteurs du monde de la simulation et du Calcul haute performance, ces miniapps se présentent sous la forme simplifiée d'un ou plusieurs \underline{cœurs de calcul numérique}, chacun centré sur une étape clé de l'algorithme global. Par exemple, dans le cas de la mini-application miniFE (pour "mini Finite Elements"), l'étude est centrée sur une méthode des éléments finis, et plus particulièrement sur l'application d'un algorithme de gradient conjugué, qui peut faire l'objet de nombreuses améliorations.
 
@@ -176,18 +178,20 @@ Ces miniapps ont ainsi plusieurs objectifs :
 \item permettre d'effectuer les modifications du code en conséquences afin de faire concorder matériel et algorithme.
 \end{itemize}\bigskip
 
-Du fait de la grande diversité des origines des problèmes physiques, ainsi que des approches numériques pour les résoudre, le champs des mini-applications est très vaste. Le Sandia National Laboratories fut un des initiateurs du concept de mini-application et au travers notamment du projet Mantevo \cite{mantevo-project}, de nombreuses miniapp furent conçues.
-
-
-\section{Conception et analyse d'une miniapp}
-
-
-
-% conception miniapps : partir d'un code complexe et extraire le coeur de ce qui fait le calcul, sa lenteur et les principales communications parallèles, son interaction avec le matériel
-
 
 
 \section{Présentation de quelques miniapps}
+
+Du fait de la grande diversité des origines des problèmes physiques, ainsi que des approches numériques pour les résoudre, le champs des mini-applications est très vaste. Le Sandia National Laboratories fut un des initiateurs du concept de mini-application et au travers notamment du projet Mantevo \cite{mantevo-project}, de nombreuses miniapps furent conçues. Dans la suite Mantevo 3.0 \cite{heroux2015}, nous pouvons ainsi trouver, entres autres, :
+\begin{itemize}
+\item \textbf{miniFE} (ou parfois appelée \textbf{HPCCG}) : une mini-application axée sur la résolution d'un système d'équation non-linéaire par la méthode des éléments finis. Le solveur (ou cœur de calcul du code) utilise la méthode du gradient conjugué. Il est écrit en langage C++ et utilise la notion de classe template pour permettre notamment l'étude de l'influence de différents types du C++ permettant le stockage des valeurs (float, double, et leurs variants). Des implémentations hybride MPI+OpenMP, CUDA, OpenCL.
+\item \textbf{miniAero} (ajouté à la version 3.0 seulement) : une miniapp de résolution d'équations de Navier-Stokes compressibles, en utilisant des volumes finis au travers d'une méthode de Runge-Kutta d'ordre 4 \cite{miniaero-code}. Le code est écrit en C++.
+\item \textbf{TeaLeaf} : écrite en Fortran avec des implémentations OpenMP, MPI et OpenCL, cette miniapp résout l'équation linéaire de la chaleur sur une grille 2D, en utilisant un stencil à 5 points (c'est-à-dire pour lequel chaque cellule mémoire a besoin des données contenues dans les 4 cellules adjacentes). Une version TeaLeaf3D est en développement pour étendre la résolution du problème à un stencil à 7 points. \cite{tealeaf}
+\item \textbf{miniGhost} : écrite elle aussi en Fortran et proposant un stencil 5 points, miniGhost étudie notamment plusieurs paradigmes de communications inter-processus en proposant des implémentations sur le modèle BSPMA (Bulk Synchronous Parallel with Message Aggregation), qui consiste à effectuer une phase lourde en communications pendant un intervalle de temps compact, puis à passer à une phase composée uniquement de calculs. D'autres implémentations (SVAF, SVCP) sont proposées et permettent une étude approfondie de ce modèles et de leurs concordances avec l'architecture cible du calculateur \cite{barrett2012}.
+\item et bien d'autres (\textbf{miniMD}, \textbf{miniXyce}, \textbf{PathFinder}, \textbf{CoMD}, ...) \cite{heroux2015}
+\end{itemize}
+
+
 
 % présenter miniFE + présenter une autre appli qui me plait/n'a pas été trop étudiée/a été étudiée et je peux reproduire les résultats
 
