@@ -189,13 +189,19 @@ Du fait de la grande diversité des origines des problèmes physiques, ainsi que
 \item \textbf{TeaLeaf} : écrite en Fortran avec des implémentations OpenMP, MPI et OpenCL, cette miniapp résout l'équation linéaire de la chaleur sur une grille 2D, en utilisant un stencil à 5 points (c'est-à-dire pour lequel chaque cellule mémoire a besoin des données contenues dans les 4 cellules adjacentes). Une version TeaLeaf3D est en développement pour étendre la résolution du problème à un stencil à 7 points. \cite{tealeaf}
 \item \textbf{miniGhost} : écrite elle aussi en Fortran et proposant un stencil 5 points, miniGhost étudie notamment plusieurs paradigmes de communications inter-processus en proposant des implémentations sur le modèle BSPMA (Bulk Synchronous Parallel with Message Aggregation), qui consiste à effectuer une phase lourde en communications pendant un intervalle de temps compact, puis à passer à une phase composée uniquement de calculs. D'autres implémentations (SVAF, SVCP) sont proposées et permettent une étude approfondie de ce modèles et de leurs concordances avec l'architecture cible du calculateur \cite{barrett2012}.
 \item et bien d'autres (\textbf{miniMD}, \textbf{miniXyce}, \textbf{PathFinder}, \textbf{CoMD}, ...) \cite{heroux2015}
-\end{itemize}
+\end{itemize}\bigskip
+
+
+Afin de pouvoir travailler plus précisément sur le code d'une miniapp en particulier, il m'a fallut faire un choix parmi toutes celles proposées. J'ai écarté celles écrites en Fortran, qui m'auraient demandé un effort supplémentaire dans leur lecture, étant plus familier avec le langage C/C++. Mon choix s'est d'abord penché vers miniAero, dont la segmentation du code permettait une lecture agréable et simplifiée. Cependant l'implémentation proposée par le projet Mantevo \cite{miniaero-code} s'appuyait fortement sur une bibliothèque externe nommée Kokkos, qui exploite un paradigme de programmation du C++ par l'abstraction et l'utilisation massive de templates. Bien que miniAero reste une miniapp du fait que les composantes de Kokkos soient compilées à l'intérieur d'elle, la compréhension de sa structure devenait lourde et aurait impacté les efforts fournis pour comprendre les résultats des mesures effectuées, mais aussi pour éventuellement fournir des améliorations ou modifications du code.\bigskip
+
+J'ai finalement choisi de me concentrer sur la mini-application \textbf{miniXyce}. Cette dernière est un proxy de Xyce, un simulateur de circuit électrique, construit avec un design modulaire et flexible en C++ \cite{about-xyce}. MiniXyce résout les problèmes linéaires non-symétriques qui apparaissent dans des circuits composés d'inducteurs, de résistances et de condensateurs grâce à une généralisation de la méthode de minimisation des résidus (ou GMRES) et une méthode d'Euler implicite \cite{minixyce-code}.
+
+Par ailleurs, suite à la sortie de la version 1.0.0 de miniXyce, les développeurs signalent que sa conception a été axée sur la vérification que les résultats retournés étaient corrects, mais que des "analyses approfondies de Xyce ont montré des problèmes de performance sur trois phases de la simulation : le parsing, le chargement/l'évaluation du device, et la solution des équations linéaires" \cite{minixyce-code}. Ainsi, plusieurs études sont à produire autour de ce code afin de détecter ces failles afin d'éventuellement proposer une amélioration.
 
 
 
-% présenter miniFE + présenter une autre appli qui me plait/n'a pas été trop étudiée/a été étudiée et je peux reproduire les résultats
 
-\section{Intérêt pour le HPC}
+\section{\'Etude de miniXyce}
 
 % présenter les différentes approches en détaillées, les quantités qui varient, les architectures qui sont étudiées, les implémentations MPI+OpenMP, etc... cf la biblio
 
