@@ -194,16 +194,70 @@ Du fait de la grande diversité des origines des problèmes physiques, ainsi que
 
 Afin de pouvoir travailler plus précisément sur le code d'une miniapp en particulier, il m'a fallut faire un choix parmi toutes celles proposées. J'ai écarté celles écrites en Fortran, qui m'auraient demandé un effort supplémentaire dans leur lecture, étant plus familier avec le langage C/C++. Mon choix s'est d'abord penché vers miniAero, dont la segmentation du code permettait une lecture agréable et simplifiée. Cependant l'implémentation proposée par le projet Mantevo \cite{miniaero-code} s'appuyait fortement sur une bibliothèque externe nommée Kokkos, qui exploite un paradigme de programmation du C++ par l'abstraction et l'utilisation massive de templates. Bien que miniAero reste une miniapp du fait que les composantes de Kokkos soient compilées à l'intérieur d'elle, la compréhension de sa structure devenait lourde et aurait impacté les efforts fournis pour comprendre les résultats des mesures effectuées, mais aussi pour éventuellement fournir des améliorations ou modifications du code.\bigskip
 
-J'ai finalement choisi de me concentrer sur la mini-application \textbf{miniXyce}. Cette dernière est un proxy de Xyce, un simulateur de circuit électrique, construit avec un design modulaire et flexible en C++ \cite{about-xyce}. MiniXyce résout les problèmes linéaires non-symétriques qui apparaissent dans des circuits composés d'inducteurs, de résistances et de condensateurs grâce à une généralisation de la méthode de minimisation des résidus (ou GMRES) et une méthode d'Euler implicite \cite{minixyce-code}.
+J'ai finalement choisi de me concentrer sur la mini-application \textbf{miniXyce}. Cette dernière est un proxy de Xyce, un simulateur de circuit électrique, construit avec un design modulaire et flexible en C++ \cite{xyce}. MiniXyce résout les problèmes linéaires non-symétriques qui apparaissent dans des circuits composés d'inducteurs, de résistances et de condensateurs grâce à une généralisation de la méthode de minimisation des résidus (ou GMRES) et une méthode d'Euler implicite \cite{minixyce-code}.
 
 Par ailleurs, suite à la sortie de la version 1.0.0 de miniXyce, les développeurs signalent que sa conception a été axée sur la vérification que les résultats retournés étaient corrects, mais que des "analyses approfondies de Xyce ont montré des problèmes de performance sur trois phases de la simulation : le parsing, le chargement/l'évaluation du device, et la solution des équations linéaires" \cite{minixyce-code}. Ainsi, plusieurs études sont à produire autour de ce code afin de détecter ces failles afin d'éventuellement proposer une amélioration.
 
 
 
 
-\section{\'Etude de miniXyce}
 
-% présenter les différentes approches en détaillées, les quantités qui varient, les architectures qui sont étudiées, les implémentations MPI+OpenMP, etc... cf la biblio
+
+
+
+
+\chapter{\'Etude de Xyce et miniXyce}
+
+MiniXyce étant issue de Xyce, une étude comparative des deux applications nous permettra d'évaluer les résultats prédits par chacun ainsi que les performances obtenues.
+
+\section{Installation des applications}
+
+Tout d'abord, pour installer et compiler miniXyce à partir des codes sources, les étapes ont été très simples : le dépôt Github \cite{minixyce-code} propose une tarball contenant un Makefile ainsi que l'ensemble des fonctions de calcul, sans appel à une bibliothèque externe (autre que la bibliothèque standard). Un README d'une petite centaine de lignes présentes l'ensemble de la miniapp, de son installation et de son utilisation. Cela ne prend que quelques minutes.\bigskip
+
+Pour Xyce, les codes sont aussi disponibles sur Github ou sur le site du Sandia National Laboratory \cite{xyce} avec plusieurs notices de plusieurs centaines de pages chacune expliquant en détail la configuration, l'installation et l'utilisation. Du fait de l'ampleur d'un tel code (SLOC $\simeq$ 370 k), la compilation de Xyce seul prend plusieurs dizaines de minutes. Il est à noter aussi que Xyce exploite plusieurs bibliothèques externes, dont BLAS/LAPACK (les bibliothèques d'algèbre linéaire optimisées), FFT, la suite Sparse, ainsi que Trilinos, une bibliothèque conçue aussi par le Sandia Laboratory, et prenant elle aussi plusieurs dizaines de minutes à compiler (après des efforts de configuration).\bigskip
+
+Dans le contexte HPC ou dans l'étude numérique seule, nous pouvons déjà observer que si miniXyce a bien été conçue pour refléter le cœur de calcul de Xyce, son utilisation à la place de Xyce sera nettement plus facilitée.
+
+
+\section{Résultats obtenus par les applications}
+
+D'après les travaux de Aadithya, Keiter et Thornquist \cite{minixyce-validation}, les résultats obtenus par miniXyce ont pu être validés sur deux types de circuits différents. Nous allons essayer de répéter ces mesures afin de confirmer nous aussi cette conclusion.
+Les deux exemples qui seront utilisés sont les suivants :
+\begin{itemize}
+\item une échelle RC, c'est-à-dire plusieurs condensateurs en parallèles séparés par des résistances,
+\item un circuit RLC linéaire simple.
+\end{itemize}\bigskip
+
+MiniXyce et Xyce fonctionnent tous les deux en ligne de commande (une interface graphique est possible pour Xyce mais n'a pas d'intérêt dans notre étude et ne ferait que ralentir les temps d'exécution). De plus, ils ne nécessitent qu'une seul fichier en entrée, le reste des arguments constitue des options (sur les conditions initiales ou l'instant de début de simulation par exemple). Le fichier, nommé "netlist", contient toutes les informations sur les composants et l'architecture du circuit étudié. Le code source de miniXyce comporte de base des netlists de test issus des observations de \cite{minixyce-validation}.
+
+Par ailleurs, il est à noter que Xyce et miniXyce proposent une implémentation séquentielle et une autre parallèle. Il sera d'un premier abord intéressant de comparer les performances du cas séquentiel avec l'utilisation de MPI pour un seul processus (et quantifier l'overhead de MPI dans son utilisation en séquentiel).\bigskip
+
+
+% à quoi correspondent les résultats de Xyce et miniXyce ??
+
+% expliquer le travail qui a été fait pour reconstruire les fichiers d'entrée de Xyce à partir des fichiers d'entrée de miniXyce
+
+
+
+% utiliser les tests déjà présents dans miniXyce : comparer avec les résultats déjà proposés dans miniXyce (partie simple car miniXyce est surement codée pour dire si il y a concordance avec ces résultats) puis essayer de refaire la mesure dans Xyce pour voir si on a le même fichier de sortie (partie difficile : il faut comprendre quels tests ont été fait et comment utiliser Xyce pour les refaire)
+
+
+
+\section{Profils de performance}
+
+% partie performance : comparer les performances sur ces mêmes tests
+
+% ne pas oublier de tester le séquentiel et le MPI 1 processsus (deux codes différents, pas compilés pareil)
+
+
+\subsection{miniXyce}
+
+
+\subsection{Xyce}
+
+
+
+
 
 
 

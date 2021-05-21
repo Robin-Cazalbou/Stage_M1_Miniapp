@@ -1,0 +1,13 @@
+Circuit 1 pour Xyce
+** Voltage Sources (noeud 1, 2 et voltage)
+V1 1 0 5V
+* Analysis Command (step/final/start/ceiling)
+.TRAN 1e-08 5e-06 0 1e-08
+* Output (affiche le voltage aux noeuds 1, 2 et 3)
+.PRINT TRAN V(1) V(2) V(3)
+* Resistors (noeud 1, 2 et valeur de résistance)
+R1 1 2 1
+R2 2 0 5
+R3 0 3 4
+R4 3 1 2
+.END

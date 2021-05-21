@@ -1,0 +1,15 @@
+Etant donné les 5 fichiers de circuits donnés en entrée de miniXyce, 
+étant donné les 5 fichiers de résultats obtenus par l'équipe du Sandia avec Xyce,
+
+Objectif : recréer les 5 fichiers d'entrée de Xyce correspondant à ces 5 fihiers d'entrée de miniXyce (avec pour vérification les résultats)
+
+- Le fichier cir1_xyce_CAZALBOU.net est une réécriture de ma part du fichier cir1.net (de miniXyce, dans le dossier de test) pour qu'il corresponde à ce qu'attend Xyce en entrée. Le premier fichier cir1_xyce_CAZALBOU.net obtient les bons résultats, a priori (à confirmer par un appel à "diff" en bash).
+- Pour lancer Xyce : 
+Ajouter Xyce en séquentiel (pas testé en parallèle) dans le PATH : export PATH=$PATH:/home/robin/Documents/Stage_M1/Xyce_v7.2.0/XyceSerial/bin
+Lancer : Xyce cir1_xyce_CAZALBOU.net
+On obtient le résultat dans le répertoire où on a lancé Xyce.
+- Pour les conditions initiales et l'évolution : pas de conditions initiales spéciales prises en compte mais pour le temps, on prend tstart, tstop et tstep du fichier de paramètres par défaut de miniXyce :
+t_start = 0
+t_step = 1e-08
+t_stop = 5e-06
+en sachant que le mode TRAN oblige à mettre une valeur ceiling (cf Reference Guide)
