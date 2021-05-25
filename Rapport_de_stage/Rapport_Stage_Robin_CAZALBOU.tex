@@ -222,24 +222,54 @@ Dans le contexte HPC ou dans l'étude numérique seule, nous pouvons déjà obse
 \section{Résultats obtenus par les applications}
 
 D'après les travaux de Aadithya, Keiter et Thornquist \cite{minixyce-validation}, les résultats obtenus par miniXyce ont pu être validés sur deux types de circuits différents. Nous allons essayer de répéter ces mesures afin de confirmer nous aussi cette conclusion.
-Les deux exemples qui seront utilisés sont les suivants :
-\begin{itemize}
-\item une échelle RC, c'est-à-dire plusieurs condensateurs en parallèles séparés par des résistances,
-\item un circuit RLC linéaire simple.
-\end{itemize}\bigskip
 
-MiniXyce et Xyce fonctionnent tous les deux en ligne de commande (une interface graphique est possible pour Xyce mais n'a pas d'intérêt dans notre étude et ne ferait que ralentir les temps d'exécution). De plus, ils ne nécessitent qu'une seul fichier en entrée, le reste des arguments constitue des options (sur les conditions initiales ou l'instant de début de simulation par exemple). Le fichier, nommé "netlist", contient toutes les informations sur les composants et l'architecture du circuit étudié. Le code source de miniXyce comporte de base des netlists de test issus des observations de \cite{minixyce-validation}.
+Dans l'ensemble de test de miniXyce, nous pouvons ainsi trouver 5 circuits, ainsi que des scripts de génération d'échelles RC (c'est-à-dire plusieurs condensateurs en parallèles séparés par des résistances) de tailles arbitrairement grande.
+Ces 5 circuits représentent des cas simples :
+\begin{itemize}
+\item circuit 1 : deux couples de résistances branchées en parallèle,
+\item circuit 2 : une échelle RC à deux échelons,
+\item circuit 3 : un circuit RLC en série,
+\item circuit 4 : un circuit RLC simple en parallèle,
+\item circuit 5 : un autre circuit RLC plus complexe en parallèle (2 résistances).
+\end{itemize}
+De plus, différents types de générateurs de courant ou de tension sont utilisés. MiniXyce est réduite aux seuls composants R, L, C, V et I (pour résistance, bobine, condensateur, générateur de tension et générateur de courant respectivement) : nous passons ainsi en revue tous ces éléments.\bigskip
+
+MiniXyce et Xyce fonctionnent tous les deux en ligne de commande (une interface graphique est possible pour Xyce mais n'a pas d'intérêt dans notre étude et ne ferait que ralentir les temps d'exécution). De plus, ils ne nécessitent qu'une seul fichier en entrée, le reste des arguments constitue des options (sur les conditions initiales ou l'instant de début de simulation par exemple). Le fichier, nommé "netlist", contient toutes les informations sur les composants et l'architecture du circuit étudié. Le code source de miniXyce comporte de base les netlists de test issus des observations de \cite{minixyce-validation} et représentant les circuits 1 à 5 présentés précédemment.
 
 Par ailleurs, il est à noter que Xyce et miniXyce proposent une implémentation séquentielle et une autre parallèle. Il sera d'un premier abord intéressant de comparer les performances du cas séquentiel avec l'utilisation de MPI pour un seul processus (et quantifier l'overhead de MPI dans son utilisation en séquentiel).\bigskip
 
 
-% à quoi correspondent les résultats de Xyce et miniXyce ??
+\subsection{Lancement de Xyce}
 
-% expliquer le travail qui a été fait pour reconstruire les fichiers d'entrée de Xyce à partir des fichiers d'entrée de miniXyce
+Le fonctionnement des netlists de Xyce demande beaucoup d'effort à être appréhendé, surtout lorsque l'on n'est pas expert en composants électriques. Je me suis donc basé sur les netlists de test de miniXyce pour reconstruire les netlists des 5 circuits pour Xyce. Que ce soit en version séquentielle ou parallèle, Xyce ressort les mêmes résultats pour un même circuit (comparaison effectuée avec la commande bash "diff").
+
+Précisons au passage que les fonctionnalités de Xyce permettent d'afficher un grand nombre types de résultats, mais que nous gardons seulement la mesure de la tension aux niveau des nœuds du circuit.
+
+Les résultats obtenus par Xyce et fournis par les concepteurs de miniXyce étant nommés "gold standards", nous avons pu obtenir exactement ces valeurs pour les circuits 1, 2 et 4. Le circuit 5 n'a pas ses gold standards de fournis, et quant au circuit 3, nous avons observé une différence : cela est dû au fait que Xyce choisit elle-même les pas de temps qu'elle va prendre tout au long de l'étude, et seul un pas maximal peut être fixé. Il a donc fallu ruser en imposant à Xyce une liste d'instants de calcul de la tension du circuit. Cependant les valeurs pour ces instants sont obtenus à partir d'une interpolation sur les valeurs calculées selon le choix de Xyce.
+
+Deux questions se posent alors :
+\begin{itemize}
+\item quel impact cette interpolation a-t-elle sur les performances de Xyce ?
+
+En effet, nous forçons des valeurs spécifiques à être obtenues, et faisons entrer en jeu l'interpolation qui n'est pas disponible sous miniXyce. L'intérêt de l'étude de ce circuit en tant que tel semble ainsi plus limitée.
+\item l'écart entre les deux fichiers de valeurs est-il grand ?
+
+\'Etant donné que nous ne savons pas comment le gold standard du circuit 3 a été obtenu, nous devrons nous contenter de valeurs approchées.
+\end{itemize}
+
+% code pour mesurer les écarts (expliquer rapidement comment j'ai fais le code + ce qu'il mesure)
+% présenter les données dans un tableau
 
 
 
-% utiliser les tests déjà présents dans miniXyce : comparer avec les résultats déjà proposés dans miniXyce (partie simple car miniXyce est surement codée pour dire si il y a concordance avec ces résultats) puis essayer de refaire la mesure dans Xyce pour voir si on a le même fichier de sortie (partie difficile : il faut comprendre quels tests ont été fait et comment utiliser Xyce pour les refaire)
+
+\subsection{Lancement de miniXyce}
+
+% à quoi correspondent les résultats de miniXyce ??
+
+% utiliser les tests déjà présents dans miniXyce : comparer avec les résultats déjà proposés dans miniXyce
+
+
 
 
 
