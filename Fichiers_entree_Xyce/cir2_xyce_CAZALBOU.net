@@ -1,0 +1,14 @@
+Circuit 2 pour Xyce
+** Voltage Sources
+V1 1 0 5V
+* Analysis Command
+.TRAN 1e-08 5e-06 0 1e-08
+* Output
+.PRINT TRAN V(1) V(2) V(3)
+* Resistors
+R1 1 2 1
+R2 2 3 1
+* Capacitors
+C1 2 0 1e-06
+C2 3 0 1e-06
+.END

@@ -1,9 +1,9 @@
 Etant donné les 5 fichiers de circuits donnés en entrée de miniXyce, 
 étant donné les 5 fichiers de résultats obtenus par l'équipe du Sandia avec Xyce,
 
-Objectif : recréer les 5 fichiers d'entrée de Xyce correspondant à ces 5 fihiers d'entrée de miniXyce (avec pour vérification les résultats)
+Objectif : recréer les 5 fichiers d'entrée de Xyce correspondant à ces 5 fichiers d'entrée de miniXyce (avec pour vérification les résultats)
 
-- Le fichier cir1_xyce_CAZALBOU.net est une réécriture de ma part du fichier cir1.net (de miniXyce, dans le dossier de test) pour qu'il corresponde à ce qu'attend Xyce en entrée. Le premier fichier cir1_xyce_CAZALBOU.net obtient les bons résultats, a priori (à confirmer par un appel à "diff" en bash).
+- Le fichier cir1_xyce_CAZALBOU.net est une réécriture de ma part du fichier cir1.net (de miniXyce, dans le dossier de test) pour qu'il corresponde à ce qu'attend Xyce en entrée. Le premier fichier cir1_xyce_CAZALBOU.net obtient les bons résultats, a priori (à confirmer par un appel à "diff" en bash). Les fichiers des circuits 1, 2 et 4 semblent donner les bons résultats. Le circuit 3 donne des résultats proches mais pas identiques.
 - Pour lancer Xyce : 
 Ajouter Xyce en séquentiel (pas testé en parallèle) dans le PATH : export PATH=$PATH:/home/robin/Documents/Stage_M1/Xyce_v7.2.0/XyceSerial/bin
 Lancer : Xyce cir1_xyce_CAZALBOU.net

@@ -1,0 +1,15 @@
+Circuit 4 pour Xyce
+** Current Sources
+I1 1 0 SIN(0 1e-03 1e6 0 0 0)
+* Analysis Command
+.TRAN 1e-08 5e-06 0 1e-08
+.OPTIONS OUTPUT INITIAL_INTERVAL=1e-08
+* Output
+.PRINT TRAN V(1)
+* Resistors
+R1 1 0 1
+* Capacitors
+C1 1 0 1e-06
+* Inductors
+L1 1 0 1e-06
+.END
