@@ -1,0 +1,19 @@
+Circuit 5 pour Xyce
+** Current Sources
+I1 2 0 PULSE(0 2 1e-6 0 0 1e-06 1e-06)
+** Voltage Sources
+V1 1 0 SIN(0 5 1e6 0 0 0)
+* Analysis Command
+.TRAN 1e-08 5e-06
+.OPTIONS TIMEINT ERROPTION=1
+.OPTIONS OUTPUT INITIAL_INTERVAL=1e-08
+* Output
+.PRINT TRAN V(1) V(2) V(3)
+* Resistors
+R1 1 2 1
+R2 2 0 2
+* Capacitors
+C1 3 0 1e-06
+* Inductors
+L1 2 3 1e-06
+.END
