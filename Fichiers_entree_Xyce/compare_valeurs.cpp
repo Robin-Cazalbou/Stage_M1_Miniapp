@@ -65,8 +65,10 @@ int main(int argc, char **argv)
     vec_diff3.push_back(diff3);
   }
 
-  // Calcul de la moyenne sur chacun des trois vecteurs :
+  // Calcul de la moyenne/de l'écart-type sur chacun des trois vecteurs :
   double moy1 = 0, moy2 = 0, moy3 = 0;
+  double ecart_type1 = 0, ecart_type2 = 0, ecart_type3 = 0;
+
   for(auto val : vec_diff1)
   {
     moy1 += val;
@@ -79,13 +81,35 @@ int main(int argc, char **argv)
   {
     moy3 += val;
   }
-
   moy1 = moy1/(double)vec_diff1.size();
   moy2 = moy2/(double)vec_diff2.size();
   moy3 = moy3/(double)vec_diff3.size();
 
-  std::cout << moy1 << " " << moy2 << " " << moy3 << std::endl;
 
+  for(auto val : vec_diff1)
+  {
+    ecart_type1 += (val - moy1)*(val - moy1);
+  }
+  for(auto val : vec_diff2)
+  {
+    ecart_type2 += (val - moy2)*(val - moy2);
+  }
+  for(auto val : vec_diff3)
+  {
+    ecart_type3 += (val - moy3)*(val - moy3);
+  }
+  ecart_type1 = ecart_type1 /(double)vec_diff1.size();
+  ecart_type2 = ecart_type2 /(double)vec_diff2.size();
+  ecart_type3 = ecart_type3 /(double)vec_diff3.size();
+
+  ecart_type1 = sqrt(ecart_type1);
+  ecart_type2 = sqrt(ecart_type2);
+  ecart_type3 = sqrt(ecart_type3);
+
+  std::cout << "Moyennes : ";
+  std::cout << moy1 << " " << moy2 << " " << moy3 << std::endl;
+  std::cout << "Ecarts-type : ";
+  std::cout << ecart_type1 << " " << ecart_type2 << " " << ecart_type3 << std::endl;
 
 
   return 0;
