@@ -6,3 +6,8 @@
 *.out
 *.synctex.gz
 *.toc
+
+# Executables et objets
+*.exe
+*.x
+*.o

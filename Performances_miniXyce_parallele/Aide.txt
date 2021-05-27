@@ -1,0 +1,4 @@
+Pour lancer les tests miniXyce depuis un autre dossier que le dossier source :
+- se placer dans le dossier source avec le terminal (là où il y a miniXyce.x). Attention : prendre la version 1.0.0 !
+- export PATH=$PATH:$PWD
+- mpirun -np 2 miniXyce.x -c Circuits_miniXyce/cir4.net (par exemple)
