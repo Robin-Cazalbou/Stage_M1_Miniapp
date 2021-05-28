@@ -1,8 +1,8 @@
 #	Mesure	Temps_moyen	Ecart_type
-Parameter parsing	0.000307658	3.5306e-05
-Netlist parsing	3.32087e-05	9.43722e-06
-DCOP calc	8.12128e-05	2.11508e-05
-Matrix setup	1.65135e-07	5.09507e-08
-Transient calc	0.010997	0.0019875
-I/O File	0.00894264	0.00154054
-Total Simulation	0.0118536	0.00195725
+Parameter parsing	0.000307658	3.5306e-05	2.59548%
+Netlist parsing	3.32087e-05	9.43722e-06	0.280158%
+DCOP calc	8.12128e-05	2.11508e-05	0.685133%
+Matrix setup	1.65135e-07	5.09507e-08	0.00139312%
+Transient calc	0.010997	0.0019875	92.7732%
+I/O File	0.00894264	0.00154054	75.4424%
+Total Simulation	0.0118536	0.00195725	100%

@@ -117,13 +117,13 @@ int main(int argc, char **argv)
     }
 
     flux_sortie << "#\tMesure\tTemps_moyen\tEcart_type" << std::endl;
-    flux_sortie << "Parameter parsing\t" << moyennes[7*p] << "\t" << ecarts_types[7*p] << std::endl;
-    flux_sortie << "Netlist parsing\t" << moyennes[7*p+1] << "\t" << ecarts_types[7*p+1] << std::endl;
-    flux_sortie << "DCOP calc\t" << moyennes[7*p+2] << "\t" << ecarts_types[7*p+2] << std::endl;
-    flux_sortie << "Matrix setup\t" << moyennes[7*p+3] << "\t" << ecarts_types[7*p+3] << std::endl;
-    flux_sortie << "Transient calc\t" << moyennes[7*p+4] << "\t" << ecarts_types[7*p+4] << std::endl;
-    flux_sortie << "I/O File\t" << moyennes[7*p+5] << "\t" << ecarts_types[7*p+5] << std::endl;
-    flux_sortie << "Total Simulation\t" << moyennes[7*p+6] << "\t" << ecarts_types[7*p+6] << std::endl;
+    flux_sortie << "Parameter parsing\t" << moyennes[7*p] << "\t" << ecarts_types[7*p] << "\t" << 100*moyennes[7*p]/moyennes[7*p+6] << "%" << std::endl;
+    flux_sortie << "Netlist parsing\t" << moyennes[7*p+1] << "\t" << ecarts_types[7*p+1] << "\t" << 100*moyennes[7*p+1]/moyennes[7*p+6] << "%" << std::endl;
+    flux_sortie << "DCOP calc\t" << moyennes[7*p+2] << "\t" << ecarts_types[7*p+2] << "\t" << 100*moyennes[7*p+2]/moyennes[7*p+6] << "%" << std::endl;
+    flux_sortie << "Matrix setup\t" << moyennes[7*p+3] << "\t" << ecarts_types[7*p+3] << "\t" << 100*moyennes[7*p+3]/moyennes[7*p+6] << "%" << std::endl;
+    flux_sortie << "Transient calc\t" << moyennes[7*p+4] << "\t" << ecarts_types[7*p+4] << "\t" << 100*moyennes[7*p+4]/moyennes[7*p+6] << "%" << std::endl;
+    flux_sortie << "I/O File\t" << moyennes[7*p+5] << "\t" << ecarts_types[7*p+5] << "\t" << 100*moyennes[7*p+5]/moyennes[7*p+6] << "%" << std::endl;
+    flux_sortie << "Total Simulation\t" << moyennes[7*p+6] << "\t" << ecarts_types[7*p+6] << "\t" << 100*moyennes[7*p+6]/moyennes[7*p+6] << "%" << std::endl;
 
     flux_sortie.close();
   }
@@ -134,14 +134,14 @@ int main(int argc, char **argv)
   std::cout << std::endl << "=========== Traitement des données ============" << std::endl << std::endl;
   for(int p = 0; p<NB_PROC; p++)
   {
-    std::cout << "* Moyennes/écart-types pour la " << p+1 << "-ième taille de communicateur :" << std::endl;
-    std::cout << "\t- Parameter parsing : \t" << moyennes[7*p] << " / " << ecarts_types[7*p] << std::endl;
-    std::cout << "\t- Netlist parsing : \t" << moyennes[7*p+1] << " / " << ecarts_types[7*p+1] << std::endl;
-    std::cout << "\t- DCOP calculation : \t" << moyennes[7*p+2] << " / " << ecarts_types[7*p+2] << std::endl;
-    std::cout << "\t- Matrix setup : \t" << moyennes[7*p+3] << " / " << ecarts_types[7*p+3] << std::endl;
-    std::cout << "\t- Transient calc : \t" << moyennes[7*p+4] << " / " << ecarts_types[7*p+4] << std::endl;
-    std::cout << "\t- I/O File : \t\t" << moyennes[7*p+5] << " / " << ecarts_types[7*p+5] << std::endl;
-    std::cout << "\t- Total Simulation : \t" << moyennes[7*p+6] << " / " << ecarts_types[7*p+6] << std::endl << std::endl;
+    std::cout << "* Moyennes/écart-types/pourcentage temps total pour la " << p+1 << "-ième taille de communicateur :" << std::endl;
+    std::cout << "\t- Parameter parsing : \t" << moyennes[7*p] << " / " << ecarts_types[7*p] << " / " << 100*moyennes[7*p]/moyennes[7*p+6] << "%" << std::endl;
+    std::cout << "\t- Netlist parsing : \t" << moyennes[7*p+1] << " / " << ecarts_types[7*p+1] << " / " << 100*moyennes[7*p+1]/moyennes[7*p+6] << "%" << std::endl;
+    std::cout << "\t- DCOP calculation : \t" << moyennes[7*p+2] << " / " << ecarts_types[7*p+2] << " / " << 100*moyennes[7*p+2]/moyennes[7*p+6] << "%" << std::endl;
+    std::cout << "\t- Matrix setup : \t" << moyennes[7*p+3] << " / " << ecarts_types[7*p+3] << " / " << 100*moyennes[7*p+3]/moyennes[7*p+6] << "%" << std::endl;
+    std::cout << "\t- Transient calc : \t" << moyennes[7*p+4] << " / " << ecarts_types[7*p+4] << " / " << 100*moyennes[7*p+4]/moyennes[7*p+6] << "%" << std::endl;
+    std::cout << "\t- I/O File : \t\t" << moyennes[7*p+5] << " / " << ecarts_types[7*p+5] << " / " << 100*moyennes[7*p+5]/moyennes[7*p+6] << "%" << std::endl;
+    std::cout << "\t- Total Simulation : \t" << moyennes[7*p+6] << " / " << ecarts_types[7*p+6] << " / " << 100*moyennes[7*p+6]/moyennes[7*p+6] << "%" << std::endl << std::endl;
   }
   std::cout << "=========== Fin de traitement des données ===========" << std::endl << std::endl;
 
