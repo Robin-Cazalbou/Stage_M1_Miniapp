@@ -6,7 +6,7 @@
 #include <cmath>
 
 
-#define NB_PROC 4
+#define NB_PROC 1
 #define NB_REP 1000
 
 
