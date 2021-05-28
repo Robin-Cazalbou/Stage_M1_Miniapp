@@ -30,6 +30,13 @@ set xtics rotate by -45
 # Séparateur des données dans le fichier de données brutes transféré à gnuplot
 set datafile separator "\t"
 
+# Désactiver l'affichage de la légende (i.e. association couleur de courbe avec son nom)
+unset key
+
+# Titre du graphique, légende selon y
+set title "Temps moyen d'exécution pour chaque sous-partie de miniXyce" font "Helvetica,16"
+set ylabel "Temps moyen d'exécution (en s)"
+
 
 # Création du graphique en utilisant les colonnes 2 et 3, et la colonne 1 en tant que légende
-plot 'Resultats_mesures/Traitement_donnees_proc1.dat' using 2:3:xtic(1)
+plot 'Resultats_mesures/Traitement_donnees_proc1.dat' using 2:3:xtic(1) lc "blue"
