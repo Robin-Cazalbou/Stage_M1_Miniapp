@@ -1,0 +1,6 @@
+#	Mesure	Temps_moyen	Ecart_type	 Pourcentage_temps_total
+Problem set up	0.00503084	0.000348333	5.34473%
+DCOP calc	0.00169987	0.000157889	1.80592%
+Transient calc	0.0871464	0.00231171	92.5836%
+Total Solvers	0.089202	0.00236021	94.7675%
+Total Simulation	0.0941272	0.00247992	100%
