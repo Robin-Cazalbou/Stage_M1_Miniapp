@@ -348,7 +348,7 @@ Précisons que toutes les mesures ont été faites en simulant les calculs sur l
 
 D'autre part, les mesures en multi-processus sont celles rapportées uniquement par le processus 0 : beaucoup de synchronisations sont encore présentes dans le code et les mesures se rapprochent de celles des autres processus. Ce n'est pas optimal pour notre étude, mais comme nous l'avons dit, nous présentons pour l'instant un premier profil simple.
 
-Les mesures ont été réalisées sur ordinateur personnel (à mémoire partagée) à 4 cœurs hyperthreadés Intel i7-4700MQ (Haswell), et avec l'implémentation MPICH 3.4.1 pour MPI. Dans le cas parallèle, l'appel à MPI\_Wtime est utilisé pour les mesures de temps, alors que pour le cas séquentiel, c'est l'appel à gettimeofday qui est réalisé (sachant que sa précision est à la $\mu s$ près).\bigskip
+Les mesures ont été réalisées sur ordinateur personnel (à mémoire partagée) à 4 cœurs hyperthreadés Intel i7-4700MQ (Haswell), et avec l'implémentation MPICH 3.4.1 pour MPI. Dans le cas parallèle, l'appel à MPI\_Wtime est utilisé pour les mesures de temps, alors que pour le cas séquentiel, c'est l'appel à gettimeofday qui est réalisé (sachant que sa précision est à la $\mu s$ près). Pour que gettimeofday soit utilisé, il a fallu faire une toute petite modification dans le code d'origine en ajoutant un flag de compilation (mais l'ensemble du code prenant déjà en charge gettimeofday, rien d'autre n'a été changé).\bigskip
 
 La première chose à relever sur le profil de miniXyce est le fait que la somme des temps ne rejoint pas le temps de simulation total : cela s'explique par certains points du code non évalués, ainsi que par l'inclusion du temps d'I/O dans celui de la période de calcul transitoire.
 
@@ -361,7 +361,24 @@ D'une manière générale, l'optimisation des I/O, la période transitoire et le
 
 \subsection{Xyce}
 
+Xyce propose de son côté des mesures plus détaillées et un rapport assez complet à la fin de l'exécution. Ne pouvant relire et comprendre tout le code de Xyce, je me suis contenté de récupérer les informations les plus globales afin de pouvoir comparer avec miniXyce, sans rentrer dans les détails complexes de mise en place des solveurs.
 
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.6]{Images-Rapport/Profil_Xyce/Profil_Xyce_sequentiel.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_Xyce/Profil_Xyce_parallele1.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_Xyce/Profil_Xyce_parallele2.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_Xyce/Profil_Xyce_parallele3.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_Xyce/Profil_Xyce_parallele4.png}
+\caption{Profil simple de Xyce, dans le cas séquentiel et dans le cas parallèle, pour 1 à 4 processus MPI.}
+\label{Profil_Xyce}
+\end{center}
+\end{figure}
+
+
+Nous présentons en figure \ref{Profil_Xyce} les profils obtenus avec Xyce, dans les mêmes circonstances que ceux obtenus avec la miniapp. Cinq mesures sont effectuées, dans lesquelles nous retrouvons le calcul DCOP, la période transitoire et le temps total de la simulation.
+
+Les temps d'exécution globaux sont presque multipliés par 4, mais la période transitoire prend toujours dans les 90\% du temps, alors que le calcul DCOP reste dans les alentours de 1\%. Nous pouvons ainsi dire que les profils de performance des deux applications sont, a priori sur un circuit très simple, globalement similaire. MiniXyce présente ainsi l'intérêt d'approcher Xyce en se souciant de l'aspect performance. 
 
 
 
