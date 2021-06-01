@@ -278,7 +278,7 @@ Nous voyons ainsi que l'interpolation nous donne des résultats très similaires
 
 \subsection{Lancement de miniXyce}
 
-Précisons qu'avec la version 1.1 de miniXyce, les netlists Xyce sont acceptés (les commandes d'analyses plus poussées sont simplement ignorées par la miniapp). Ce n'est pas le cas pour la version 1.0.0 pour laquelle, par exemple, les commentaires sont symbolisés par un "\%" (là ou Xyce les symbolise avec une "*").
+Précisons qu'avec la version 1.1 de miniXyce, les netlists Xyce sont acceptés (les commandes d'analyses plus poussées sont simplement ignorées par la miniapp). Ce n'est pas le cas pour la version 1.0.0 pour laquelle, par exemple, les commentaires sont symbolisés par un "\%" (là où Xyce les symbolise avec une "*").
 
 Pour vérifier les résultats proposés par miniXyce, nous utilisons les scripts de tests qui sont proposés : ces derniers se basent sur les gold standards (que nous avons vérifié). Un script Perl compare le fichier de sortie Xyce avec le fichier de sortie miniXyce : les 4 circuits passent le test haut-la-main, avec une erreur moyenne sur chaque voltage d'au plus $10^{-10}$.
 
@@ -288,13 +288,75 @@ Les résultats de miniXyce sont plus complets que ceux de Xyce, étant donné qu
 
 
 
-\section{Profils de performance}
+\section{Premiers profils de performance}
 
-% partie performance : comparer les performances sur ces mêmes tests
+Les deux applications présentent de base dans leur code une mesure du temps d'exécution, que ce soit le temps total de la simulation ou bien certaines sous-parties du code qui sont sensées prendre plus de temps.
 
-% ne pas oublier de tester le séquentiel et le MPI 1 processsus (deux codes différents, pas compilés pareil)
 
 \subsection{miniXyce}
+
+En analysant le code de miniXyce, nous pouvons remarquer que les mesures de temps forment globalement une partition assez claire du temps total, mise à part sur la boucle principale. Nous trouvons ainsi les mesures de temps suivantes :
+\begin{itemize}
+\item le parsing des paramètres (conditions initiales, intervalles de temps de la simulation, ...)
+\item le parsing du netlist (et donc de la structure du circuit modélisé, des composants en jeu)
+\item le calcul du DC Operating Point (ou point de fonctionnement)
+\item la mise en place d'une matrice (matrix set up)
+\item des I/O pour le résultat de l'application (la tension sur les composants du circuit dans nos exemples)
+\item les itérations sur la période transitoire (transient calculation)
+\item et enfin la simulation dans son ensemble.
+\end{itemize}
+
+Il faut ajouter à cela d'infimes manipulations et allocations de variables entre les mesures (qui, du fait de leur prise de temps très faibles, ne seront pas pertinentes et peuvent être négligées), mais aussi dans le cas de MPI d'un bloc de 6 appels à MPI\_Allreduce, plutôt gourmand en temps.
+
+Enfin, le temps d'exécution de la boucle principale est celui de la période transitoire. Cependant, chaque itération est ponctuée d'une communication inter-processus et d'un I/O de la part du processus 0 : ce temps est compté dans la mesure I/O. Il faut aussi y ajouter une première étape d'I/O avant le début de la période transitoire.
+
+\begin{figure}[!ht]
+\begin{center}
+\includegraphics[scale=0.55]{Images-Rapport/schéma_miniXyce_1.0.0.png}
+\caption{Schéma des différentes sous-parties du code de miniXyce 1.0.0, à partir des mesures de temps qui en sont faites. La partie Allreduce et ajout d'informations au document YAML n'est pas mesurée par la miniapp.}
+\label{schéma_miniXyce_1.0.0}
+\end{center}
+\end{figure}
+
+La figure \ref{schéma_miniXyce_1.0.0} schématise les différentes sous-parties dont la mesure de temps est effectuée de base par le code de miniXyce 1.0.0 .\bigskip
+
+\`A partir de ces mesures, et afin d'avoir des résultat les plus stables possibles, j'ai conçu des scripts et petits codes permettant d'automatiser le lancement de la miniapp 10.000 fois : les résultats des mesures de temps sont récupérés et traités (calcul de moyenne, d'écart-type pour les barres d'erreurs, ainsi que pourcentage du temps par rapport au temps total total de la simulation), puis utilisés pour construire un histogramme résumant ces données (un script Gnuplot permet aussi d'automatiser le processus).\bigskip
+
+% insérer les figures
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.6]{Images-Rapport/Profil_miniXyce/Profil_miniXyce_sequentiel.png}
+\caption{Profil simple de miniXyce, dans le cas séquentiel.}
+\label{Profil_miniXyce_sequentiel}
+\end{center}
+\end{figure}
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce/Profil_miniXyce_parallele1.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce/Profil_miniXyce_parallele2.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce/Profil_miniXyce_parallele3.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce/Profil_miniXyce_parallele4.png}
+\caption{Profils simples de miniXyce dans le cas parallèle, pour 1 à 4 processus MPI.}
+\label{Profil_miniXyce_parallele}
+\end{center}
+\end{figure}
+
+Nous retrouvons ainsi dans la figure \ref{Profil_miniXyce_sequentiel} les 7 mesures de temps présentées dans le schéma \ref{schéma_miniXyce_1.0.0}, en échelle logarithmique, et dans le cas séquentiel. Les pourcentages indiquent quelle proportion du temps total est prise par chaque sous-partie de miniXyce. Dans la figure \ref{Profil_miniXyce_parallele}, nous présentons les mêmes mesures dans le cas parallèle, et cela pour des tailles de communicateurs MPI allant de 1 à 4.
+
+Précisons que toutes les mesures ont été faites en simulant les calculs sur le premier circuit présentés plus tôt dans ce chapitre. Ce circuit est très petit (seulement 4 résistances et une source de tension) et comporte peu d'intérêt physique. Cependant, il nous est très utile afin de tester les scripts proposés pour automatiser les mesures de temps et la conception d'un histogramme. Par ailleurs, nous nous proposons pour l'instant de fournir un premier profil du code, qui nous permettra de comprendre dans les grandes lignes les points chauds de miniXyce ainsi que ses faiblesses.
+
+D'autre part, les mesures en multi-processus sont celles rapportées uniquement par le processus 0 : beaucoup de synchronisations sont encore présentes dans le code et les mesures se rapprochent de celles des autres processus. Ce n'est pas optimal pour notre étude, mais comme nous l'avons dit, nous présentons pour l'instant un premier profil simple.
+
+Les mesures ont été réalisées sur ordinateur personnel (à mémoire partagée) à 4 cœurs hyperthreadés Intel i7-4700MQ (Haswell), et avec l'implémentation MPICH 3.4.1 pour MPI. Dans le cas parallèle, l'appel à MPI\_Wtime est utilisé pour les mesures de temps, alors que pour le cas séquentiel, c'est l'appel à gettimeofday qui est réalisé (sachant que sa précision est à la $\mu s$ près).\bigskip
+
+La première chose à relever sur le profil de miniXyce est le fait que la somme des temps ne rejoint pas le temps de simulation total : cela s'explique par certains points du code non évalués, ainsi que par l'inclusion du temps d'I/O dans celui de la période de calcul transitoire.
+
+Nous remarquons néanmoins que la proportion du temps des I/O diminue lorsque le nombre de processus augmente : étant donné que seul le processus 0 s'occupe des I/O, cette baisse est due au fait que le temps global augmente alors que les I/O restent constants. Les appels à MPI\_Allreduce doivent avoir un fort effet sur le temps d'exécution et montrent déjà une mauvaise scalabilité du code.
+
+D'une manière générale, l'optimisation des I/O, la période transitoire et le parsing des paramètres semblent les plus chronophages et méritent le plus d'attention. Une remarque tout de même : notre circuit électrique étant pour l'instant très petit, il ne faut pas négliger la possibilité que la taille de la matrice explose avec le nombre de composants et que sa mise en place deviennent plus conséquente en temps : ce temps est donc à surveiller.
+
+
 
 
 \subsection{Xyce}

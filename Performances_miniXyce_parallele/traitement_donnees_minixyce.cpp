@@ -7,7 +7,7 @@
 
 
 #define NB_PROC 4
-#define NB_REP 1000
+#define NB_REP 10000
 
 
 // Ce code extrait les données sorties par miniXyce après application du script
