@@ -206,7 +206,7 @@ Par ailleurs, suite à la sortie de la version 1.0.0 de miniXyce, les développe
 
 
 
-\chapter{\'Etude de Xyce et miniXyce}
+\chapter{\'Etude comparative de Xyce et miniXyce}
 
 MiniXyce étant issue de Xyce, une étude comparative des deux applications nous permettra d'évaluer les résultats prédits par chacun ainsi que les performances obtenues.
 
@@ -322,7 +322,6 @@ La figure \ref{schéma_miniXyce_1.0.0} schématise les différentes sous-parties
 
 \`A partir de ces mesures, et afin d'avoir des résultat les plus stables possibles, j'ai conçu des scripts et petits codes permettant d'automatiser le lancement de la miniapp 10.000 fois : les résultats des mesures de temps sont récupérés et traités (calcul de moyenne, d'écart-type pour les barres d'erreurs, ainsi que pourcentage du temps par rapport au temps total total de la simulation), puis utilisés pour construire un histogramme résumant ces données (un script Gnuplot permet aussi d'automatiser le processus).\bigskip
 
-% insérer les figures
 \begin{figure}
 \begin{center}
 \includegraphics[scale=0.6]{Images-Rapport/Profil_miniXyce/Profil_miniXyce_sequentiel.png}
@@ -379,6 +378,34 @@ Xyce propose de son côté des mesures plus détaillées et un rapport assez com
 Nous présentons en figure \ref{Profil_Xyce} les profils obtenus avec Xyce, dans les mêmes circonstances que ceux obtenus avec la miniapp. Cinq mesures sont effectuées, dans lesquelles nous retrouvons le calcul DCOP, la période transitoire et le temps total de la simulation.
 
 Les temps d'exécution globaux sont presque multipliés par 4, mais la période transitoire prend toujours dans les 90\% du temps, alors que le calcul DCOP reste dans les alentours de 1\%. Nous pouvons ainsi dire que les profils de performance des deux applications sont, a priori sur un circuit très simple, globalement similaire. MiniXyce présente ainsi l'intérêt d'approcher Xyce en se souciant de l'aspect performance. 
+
+
+
+
+
+
+
+
+
+\chapter{Analyse approfondie de la miniapp}
+
+Dans le précédent chapitre, nous avons donné un premier profil de miniXyce sur un circuit très petit à 4 résistances. Nous avons supposé que la scalabilité risquait d'être mauvaise, du fait d'I/O répétés mais aussi d'un partage de travail a priori déséquilibré.
+
+Pour vérifier ou rejeter les hypothèses faites, il va nous falloir réaliser une étude plus approfondie se basant sur les points suivants :
+\begin{itemize}
+\item travailler sur un circuit de plus grande envergure, de sorte à ce que l'on puisse s'approcher d'un code de simulation plus réaliste et donc plus long en exécution. Nous pourrons refaire le profilage précédent et étudier les modifications.
+\item travailler avec des outils de profiling plus fins comme Gprof ou Maqao
+\item enfin, évaluer la scalabilité à proprement parlée (en se basant sur le temps total)
+\end{itemize}
+
+
+\section{Nouveau profilage}
+
+Les scripts Perl proposés dans le code source de miniXyce permettent de générer des échelles RC ou RLC aussi grandes que nécessaire. Le temps actuel pour 4 résistances étant de l'ordre de la milliseconde, il me semble pertinent de générer un circuit qui prenne au moins 1 seconde à être analysé par la miniapp, c'est-à-dire au moins 100 plus grand.
+
+Deux scripts génèrent un même circuit à une différence près : dans le second, les composants électroniques sont groupés par types (résistances, condensateurs, bobines), alors qu'ils le sont par paquets R-C-L avec le premier. Cela peut avoir son importance selon le partage des tâches qui est fait entre processus. Nous ferrons donc nos mesures sur ces deux circuits : cirRLC100.net et cirRLC100\_bis.net .
+
+
 
 
 
