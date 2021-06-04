@@ -67,6 +67,9 @@ do
     do
         $command | grep -e "Parameter_parsing_time" -e "Netlist_parsing_time" -e "Matrix_setup_time" -e "DCOP_calculation_time" -e "Transient_calculation_time" -e "I/O File Time" -e "Total Simulation Time" >> $fich_res
         rm -f *.yaml
+        if [[ $(( $i % 10 )) -eq 0 ]]; then
+          echo "$i / $nbrep"
+        fi
     done
     echo "Taille communicateur terminée"
 done

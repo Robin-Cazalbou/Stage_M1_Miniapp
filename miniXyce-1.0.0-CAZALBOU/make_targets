@@ -1,0 +1,44 @@
+
+OBJS = \
+	./build/mX_source.o \
+	./build/mX_linear_DAE.o \
+	./build/mX_parms.o \
+	./build/mX_sparse_matrix.o \
+	./build/mX_parser.o \
+	./build/YAML_Doc.o \
+	./build/YAML_Element.o
+
+UTIL_OBJS = \
+	./build/mX_timer.o
+
+MAIN_OBJ = \
+	./build/mX_linear_ckt_simulator.o
+
+OBJDIR = ./build
+
+MINIXYCE_INFO = 1
+
+
+
+all:generate_info miniXyce.x
+
+miniXyce.x:generate_info $(MAIN_OBJ) $(OBJS) $(UTIL_OBJS)
+	mkdir -p ./build/bin
+ifeq ($(USE_MPI), -DHAVE_MPI -DMPICH_IGNORE_CXX_SEEK)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(MAIN_OBJ) $(OBJS) $(UTIL_OBJS) -o ./build/bin/miniXyce.x $(LDFLAGS)
+else
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(MAIN_OBJ) $(OBJS) $(UTIL_OBJS) -o ./build/bin/miniXyce_serial.x $(LDFLAGS)
+endif
+
+generate_info:
+	./common/generate_info_header "$(CXX)" "$(CXXFLAGS)" "miniXyce" "MINIXYCE"
+
+$(OBJDIR)/%.o: ./src/%.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIXYCE_INFO=$(MINIXYCE_INFO) -c $< -o $@
+
+
+clean:
+	rm -Rf ./build
+
+realclean: clean
+	rm -f gmon.out gprof.* *~ *.yaml
