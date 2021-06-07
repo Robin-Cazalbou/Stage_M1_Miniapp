@@ -1,0 +1,7 @@
+block_id;module;source_info;time_p;time_s;time_s_min;time_s_avg;time_s_max;cov_deviation;nb_threads;
+2509;miniXyce.x;;15.38;0.01;;;;;;
+4971;miniXyce.x;;7.69;0;;;;;;
+2514;miniXyce.x;;7.69;0;;;;;;
+2549;miniXyce.x;;7.69;0;;;;;;
+5069;miniXyce.x;;7.69;0;;;;;;
+2944;miniXyce.x;;7.69;0;;;;;;

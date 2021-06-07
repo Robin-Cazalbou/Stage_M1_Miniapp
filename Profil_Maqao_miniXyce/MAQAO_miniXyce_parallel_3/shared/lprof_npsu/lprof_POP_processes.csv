@@ -1,0 +1,4 @@
+node;pid;total_cycles;mpi_cycles;omp_cycles;sum_walltime;thread_cycles;sum_insns;mpi_insns;omp_insns;scalar_double;scalar_single;packed_single_128;packed_double_128;packed_single_256;packed_double_256;packed_single_512;packed_double_512;
+robin-SATELLITE-L70-A;6808;311031922688;305038491737;0;130.26513671875;0;0;0;0;0;0;0;0;0;0;0;0;
+robin-SATELLITE-L70-A;6810;311188848640;302968408119;0;130.36889648438;0;0;0;0;0;0;0;0;0;0;0;0;
+robin-SATELLITE-L70-A;6809;325439193088;312045073350;0;136.24230957031;0;0;0;0;0;0;0;0;0;0;0;0;

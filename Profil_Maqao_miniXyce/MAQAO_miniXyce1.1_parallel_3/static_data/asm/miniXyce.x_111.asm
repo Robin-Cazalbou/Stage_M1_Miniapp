@@ -1,0 +1,46 @@
+0xd8b0:::0::Insn: CMP	%R11,%RDI::
+0xd8b3:::0::Insn: JE	d98e <_ZN15mX_device_utils11mX_resistor13load_matricesEv+0x18e>::
+0xd8b9:::0::Insn: MOV	(%R11),%RSI::
+0xd8bc:::0::Insn: MOVAPD	%XMM2,%XMM12::
+0xd8c1:::0::Insn: MOV	0x8(%R11),%R9::
+0xd8c5:::0::Insn: ADD	$0x40,%RAX::
+0xd8c9:::0::Insn: DIVSD	(%RDX),%XMM12::
+0xd8ce:::0::Insn: MOV	0x10(%R11),%R10::
+0xd8d2:::0::Insn: MOV	0x18(%R11),%R11::
+0xd8d6:::0::Insn: ADD	$0x10,%RCX::
+0xd8da:::0::Insn: MOVSD	0x8(%RSI),%XMM13::
+0xd8e0:::0::Insn: ADDSD	%XMM12,%XMM13::
+0xd8e5:::0::Insn: MOVSD	%XMM13,0x8(%RSI)::
+0xd8eb:::0::Insn: MOVSD	0x8(%R9),%XMM14::
+0xd8f1:::0::Insn: ADDSD	%XMM12,%XMM14::
+0xd8f6:::0::Insn: MOVSD	%XMM14,0x8(%R9)::
+0xd8fc:::0::Insn: MOVSD	0x8(%R10),%XMM15::
+0xd902:::0::Insn: SUBSD	%XMM12,%XMM15::
+0xd907:::0::Insn: MOVSD	%XMM15,0x8(%R10)::
+0xd90d:::0::Insn: MOVSD	0x8(%R11),%XMM0::
+0xd913:::0::Insn: SUBSD	%XMM12,%XMM0::
+0xd918:::0::Insn: MOVSD	%XMM0,0x8(%R11)::
+0xd91e:::0::Insn: CMP	%RAX,%RDI::
+0xd921:::0::Insn: JE	d990 <_ZN15mX_device_utils11mX_resistor13load_matricesEv+0x190>::
+0xd923:::0::Insn: MOV	(%RAX),%RDX::
+0xd926:::0::Insn: MOVAPD	%XMM2,%XMM7::
+0xd92a:::0::Insn: DIVSD	(%RCX),%XMM7::
+0xd92e:::0::Insn: MOV	0x8(%RAX),%RSI::
+0xd932:::0::Insn: MOV	0x10(%RAX),%R9::
+0xd936:::0::Insn: MOV	0x18(%RAX),%R10::
+0xd93a:::0::Insn: LEA	0x20(%RAX),%R11::
+0xd93e:::0::Insn: MOVSD	0x8(%RDX),%XMM8::
+0xd944:::0::Insn: ADDSD	%XMM7,%XMM8::
+0xd949:::0::Insn: MOVSD	%XMM8,0x8(%RDX)::
+0xd94f:::0::Insn: MOVSD	0x8(%RSI),%XMM9::
+0xd955:::0::Insn: LEA	0x8(%RCX),%RDX::
+0xd959:::0::Insn: ADDSD	%XMM7,%XMM9::
+0xd95e:::0::Insn: MOVSD	%XMM9,0x8(%RSI)::
+0xd964:::0::Insn: MOVSD	0x8(%R9),%XMM10::
+0xd96a:::0::Insn: SUBSD	%XMM7,%XMM10::
+0xd96f:::0::Insn: MOVSD	%XMM10,0x8(%R9)::
+0xd975:::0::Insn: MOVSD	0x8(%R10),%XMM0::
+0xd97b:::0::Insn: SUBSD	%XMM7,%XMM0::
+0xd97f:::0::Insn: MOVSD	%XMM0,0x8(%R10)::
+0xd985:::0::Insn: CMP	%RDX,%R8::
+0xd988:::0::Insn: JNE	d8b0 <_ZN15mX_device_utils11mX_resistor13load_matricesEv+0xb0>::

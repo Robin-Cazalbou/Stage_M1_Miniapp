@@ -1,0 +1,20 @@
+********************************************************************************
+
+MAQAO 2.13.2 - bc14664714af98ecc0478b407ba8033dd28e872a::20210305-145101 || 2021/03/05
+
+maqao.intel64 oneview -create-report=one -c=config_miniXyce.lua -xp=MAQAO_miniXyce_parallel_3 
+
+Info: OMP_NUM_THREADS not set, it will be considered as equal to 1
+CMD:  OMP_NUM_THREADS=1   /home/robin/Documents/MAQAO/maqao.intel64.2.13.2/maqao.intel64 lprof  --xp=/home/robin/Documents/Stage_M1/Stage_M1_Miniapp/Profil_Maqao_miniXyce/MAQAO_miniXyce_parallel_3/tools/lprof_npsu --mpi-command="mpirun -np 3" ppn=1   -- /home/robin/Documents/Stage_M1/Stage_M1_Miniapp/Profil_Maqao_miniXyce/MAQAO_miniXyce_parallel_3/binaries/miniXyce.x -c cirRLC1000.net --pf params.txt
+In run , 7 loops were discarded from static analysis because their coverage
+are lower than object_coverage_threshold value (0.01%).
+That represents 0% of the execution time. To include them, change the value
+in the experiment directory configuration file, then rerun the command with the additionnal parameter
+--force-static-analysis
+
+35 functions were discarded from static analysis because their coverage
+are lower than object_coverage_threshold value (0.01%).
+That represents 0% of the execution time. To include them, change the value
+in the experiment directory configuration file, then rerun the command with the additionnal parameter
+--force-static-analysis
+

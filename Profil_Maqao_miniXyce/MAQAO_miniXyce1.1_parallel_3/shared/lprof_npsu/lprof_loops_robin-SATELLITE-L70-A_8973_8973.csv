@@ -1,0 +1,3 @@
+loop_id;module;function_name;function_id;source_info;level;time_p;time_s;time_s_min;time_s_avg;time_s_max;cov_deviation;nb_threads;
+198;miniXyce.x;mX_matrix_utils::init_value(mX_matrix_utils::distributed_sparse_matrix&, double);155;;Innermost;7.69;0;;;;;;
+113;miniXyce.x;mX_device_utils::mX_capacitor::load_matrices();101;;Single;7.69;0;;;;;;

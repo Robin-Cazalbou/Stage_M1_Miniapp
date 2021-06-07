@@ -1,0 +1,9 @@
+loop_id;module;function_name;function_id;source_info;level;time_p;time_s;time_s_min;time_s_avg;time_s_max;cov_deviation;nb_threads;
+100;miniXyce.x;mX_DAE_utils::evaluate_b(double, mX_DAE_utils::mX_DAE*);81;;Innermost;7.5;0.01;0;0.01;0.01;5.8278026580811;2;
+198;miniXyce.x;mX_matrix_utils::init_value(mX_matrix_utils::distributed_sparse_matrix&, double);155;;Innermost;5;0;0;0;0;4.7683715820313e-07;2;
+44;miniXyce.x;main;30;;Innermost;5;0;0.01;0.01;0.01;0;1;
+111;miniXyce.x;mX_device_utils::mX_resistor::load_matrices();99;;Single;5;0;0;0;0;0.38851976394653;2;
+113;miniXyce.x;mX_device_utils::mX_capacitor::load_matrices();101;;Single;2.5;0;0;0;0;0;1;
+46;miniXyce.x;main;30;;Innermost;2.5;0;0;0;0;0;1;
+45;miniXyce.x;main;30;;InBetween;2.5;0;0;0;0;0;1;
+94;miniXyce.x;mX_DAE_utils::evaluate_b(double, mX_DAE_utils::mX_DAE*);81;;Outermost;2.5;0;0;0;0;0;1;

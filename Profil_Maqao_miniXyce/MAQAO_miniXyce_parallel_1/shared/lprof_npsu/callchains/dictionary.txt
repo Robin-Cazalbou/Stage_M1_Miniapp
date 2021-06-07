@@ -1,0 +1,12 @@
+mX_matrix_utils::gmres(mX_matrix_utils::distributed_sparse_matrix*, std::vector<double, std::allocator<double> >&, std::vector<double, std::allocator<double> >&, double&, double&, int, std::vector<double, std::allocator<double> >&, int&, int&) - :0
+miniXyce.x
+main - :0
+__libc_start_main - :0
+libc-2.31.so
+psiginfo - :0
+vscanf - :0
+std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_pad(char, long, std::ios_base&, char*, char const*, int&) const - :0
+libstdc++.so.6.0.28
+std::ostream& std::ostream::_M_insert<double>(double) - :0
+vprintf - :0
+std::basic_filebuf<char, std::char_traits<char> >::~basic_filebuf() - :0

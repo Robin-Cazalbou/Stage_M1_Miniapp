@@ -1,0 +1,6 @@
+loop_id;module;function_name;function_id;source_info;level;time_p;time_s;time_s_min;time_s_avg;time_s_max;cov_deviation;nb_threads;
+44;miniXyce.x;main;30;;Innermost;14.29;0.01;;;;;;
+46;miniXyce.x;main;30;;Innermost;7.14;0.01;;;;;;
+45;miniXyce.x;main;30;;InBetween;7.14;0.01;;;;;;
+100;miniXyce.x;mX_DAE_utils::evaluate_b(double, mX_DAE_utils::mX_DAE*);81;;Innermost;7.14;0.01;;;;;;
+111;miniXyce.x;mX_device_utils::mX_resistor::load_matrices();99;;Single;7.14;0.01;;;;;;

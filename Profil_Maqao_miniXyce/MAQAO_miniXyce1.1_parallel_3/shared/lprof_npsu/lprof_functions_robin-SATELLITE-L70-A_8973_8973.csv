@@ -1,0 +1,11 @@
+function_id;module;function_name;source_info;time_p;time_s;time_s_min;time_s_avg;time_s_max;cov_deviation;nb_threads;
+585;libc-2.31.so;__libc_malloc;;15.38;0.01;;;;;;
+584;libc-2.31.so;pthread_attr_setschedparam;;15.38;0.01;;;;;;
+92;miniXyce.x;std::_Rb_tree<int, std::pair<int const, int>, std::_Select1st<std::pair<int const, int> >, std::less<int>, std::allocator<std::pair<int const, int> > >::_M_get_insert_hint_unique_pos(std::_Rb_tree_const_iterator<std::pair<int const, int> >, int const&);;15.38;0.01;;;;;;
+2712;libmpi.so.12.1.10;MPID_nem_tcp_connpoll;;7.69;0;;;;;;
+1906;libmpi.so.12.1.10;MPIC_Sendrecv;;7.69;0;;;;;;
+1482;libstdc++.so.6.0.28;std::_Rb_tree_insert_and_rebalance(bool, std::_Rb_tree_node_base*, std::_Rb_tree_node_base*, std::_Rb_tree_node_base&);;7.69;0;;;;;;
+1149;libstdc++.so.6.0.28;__dynamic_cast;;7.69;0;;;;;;
+155;miniXyce.x;mX_matrix_utils::init_value(mX_matrix_utils::distributed_sparse_matrix&, double);;7.69;0;;;;;;
+152;miniXyce.x;mX_matrix_utils::distributed_sparse_matrix_add_to(mX_matrix_utils::distributed_sparse_matrix*, int, int, double);;7.69;0;;;;;;
+101;miniXyce.x;mX_device_utils::mX_capacitor::load_matrices();;7.69;0;;;;;;

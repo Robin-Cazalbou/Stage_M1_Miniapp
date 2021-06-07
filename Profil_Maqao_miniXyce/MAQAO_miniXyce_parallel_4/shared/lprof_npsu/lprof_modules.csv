@@ -1,0 +1,7 @@
+name;time_p;time_s;cpi_ratio;
+/usr/local/mpich-3.4.1/lib/libmpi.so.12.1.10;96.14;96.65;;
+/usr/lib/x86_64-linux-gnu/libc-2.31.so;1.87;1.88;;
+/home/robin/Documents/Stage_M1/Stage_M1_Miniapp/Profil_Maqao_miniXyce/MAQAO_miniXyce_parallel_4/binaries/miniXyce.x;1.56;1.57;;
+/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.28;0.37;0.37;;
+kernel;0.05;0.05;;
+/usr/lib/x86_64-linux-gnu/ld-2.31.so;0.01;0.01;;
