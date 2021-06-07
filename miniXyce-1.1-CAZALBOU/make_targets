@@ -1,0 +1,60 @@
+
+# Variables : objets, fichiers et répertoires
+
+OBJDIR = ./build
+SRCDIR = ./src
+UTILDIR = ./utils
+COMDIR = ./common
+
+SRC_FILES = $(wildcard $(SRCDIR)/*.cpp)
+COM_FILES = $(wildcard $(COMDIR)/*.cpp)
+UTIL_FILES = $(wildcard $(UTILDIR)/*.cpp)
+
+INTEROBJS = $(SRC_FILES:$(SRCDIR)/%=%)
+INTERCOMOBJS = $(COM_FILES:$(COMDIR)/%=%)
+INTERUTILOBJS = $(UTIL_FILES:$(UTILDIR)/%=%)
+
+OBJS = $(addprefix $(OBJDIR)/, $(INTEROBJS:.cpp=.o))
+COM_OBJS = $(addprefix $(OBJDIR)/, $(INTERCOMOBJS:.cpp=.o))
+UTIL_OBJS = $(addprefix $(OBJDIR)/, $(INTERUTILOBJS:.cpp=.o))
+
+
+MINIXYCE_INFO = 1
+
+
+
+
+# Règles :
+
+all:generate_info miniXyce.x
+
+generate_info:
+	mkdir -p $(OBJDIR)/bin
+	./common/generate_info_header "$(CXX)" "$(CXXFLAGS)" "miniXyce" "MINIXYCE"
+
+miniXyce.x:generate_info $(OBJS) $(COM_OBJS) $(UTIL_OBJS)
+ifeq ($(USE_MPI), -DHAVE_MPI -DMPICH_IGNORE_CXX_SEEK)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OBJS) $(COM_OBJS) $(UTIL_OBJS) -o $(OBJDIR)/bin/miniXyce.x $(LDFLAGS)
+else
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OBJS) $(COM_OBJS) $(UTIL_OBJS) -o $(OBJDIR)/bin/miniXyce_serial.x $(LDFLAGS)
+endif
+
+$(OBJS):$(SRC_FILES)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIXYCE_INFO=$(MINIXYCE_INFO) -c $< -o $@
+
+$(COM_OBJS):$(COM_FILES)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIXYCE_INFO=$(MINIXYCE_INFO) -c $< -o $@
+
+$(UTIL_OBJS):$(UTIL_FILES)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIXYCE_INFO=$(MINIXYCE_INFO) -c $< -o $@)
+
+
+
+
+# Nettoyage :
+
+clean:
+	rm -Rf $(OBJDIR)
+
+realclean: clean
+	rm -f gmon.out gprof.* *~ *.yaml
