@@ -54,7 +54,7 @@ USE_MPI = -DHAVE_MPI -DMPICH_IGNORE_CXX_SEEK
 #IA32 with GCC:
 #CPP_OPT_FLAGS = -O3 -funroll-all-loops -malign-double
 #IA64 with GCC:
-CPP_OPT_FLAGS = -O3 -funroll-all-loops
+CPP_OPT_FLAGS = -O3 -std=c++11 -funroll-all-loops
 #DEBUG
 #CPP_OPT_FLAGS = -O0 -g
 

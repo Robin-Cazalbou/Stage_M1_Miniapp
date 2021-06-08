@@ -1,4 +1,4 @@
-circuit = cir6.net
+circuit = cir1.net
 t_start = 0
 t_step = 1e-8
 t_stop = 10e-6
