@@ -36,20 +36,20 @@ string YAML_Doc::generateYAML(){
   for(size_t i=0; i<children.size(); i++){
     yaml = yaml + children[i]->printYAML("");
   }
-  
+
   time_t rawtime;
   tm * ptm;
   time ( &rawtime );
   ptm = localtime(&rawtime);
-  char sdate[25];
+  char sdate[72];
   //use tm_mon+1 because tm_mon is 0 .. 11 instead of 1 .. 12
   sprintf (sdate,"%04d:%02d:%02d-%02d:%02d:%02d",ptm->tm_year + 1900, ptm->tm_mon+1,
     ptm->tm_mday, ptm->tm_hour, ptm->tm_min,ptm->tm_sec);
 
   string filename;
-  if (destinationFileName=="") 
+  if (destinationFileName=="")
     filename = miniAppName + "-" + miniAppVersion + "_";
-  else 
+  else
     filename = destinationFileName;
   filename = filename + string(sdate) + ".yaml";
   if (destinationDirectory!="" && destinationDirectory!=".") {
@@ -57,11 +57,14 @@ string YAML_Doc::generateYAML(){
 #ifdef REDSTORM
     mkdir(destinationDirectory.c_str(),0755);
 #else
-    system(mkdir_cmd.c_str());
+    if( system(mkdir_cmd.c_str()) == -1)
+    {
+      std::cerr << "ERROR with 'system' command : directory was not created. Recompile with -DREDSTORM." << std::endl;
+    }
 #endif
     filename = destinationDirectory + "/" + destinationFileName;
   }
-  else 
+  else
     filename = "./" + filename;
 
   ofstream myfile;
@@ -70,5 +73,3 @@ string YAML_Doc::generateYAML(){
   myfile.close();
   return yaml;
 }
-
-
