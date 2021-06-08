@@ -400,40 +400,70 @@ Pour vérifier ou rejeter les hypothèses faites, il va nous falloir réaliser u
 
 
 
-\section{Un peu de génie logiciel}
+\section{Premières mesures et problématique du choix de version}
 
-La version de miniXyce 1.0.0 possède le désavantage d'avoir un Makefile supprimant les versions antérieures de l'exécutable, même si celui-ci est en séquentiel alors que l'on cherche à compiler en parallèle (et inversement). J'ai commencé par le modifier afin d'avoir deux versions qui puissent coexister, et que des dossiers soient générés pour séparer fichiers objets et exécutables. Il est ainsi possible de compiler successivement avec "make", puis avec "make -f Makefile.gnu.serial -B" pour obtenir les deux versions (l'option -B force la recompilation des fichiers objets qui seraient prévus pour une version parallèle).
+\`A partir des scripts Perl proposés dans le code source de miniXyce, j'ai décidé de générer des circuits plus gros sous la forme d'une échelle RLC à 100 échelons.
 
-Par ailleurs, le script de lancement des mesures a été étoffé de sorte à effectuer aussi le traitement en automatique, et à être plus générique, sans avoir à modifier le code source selon les choix de mesures (tailles de communicateurs MPI étudiées, nombre de répétitions).
+Ce choix est justifié par le fait que les premières expérimentations sur MAQAO ont nécessité un problème prenant au moins une seconde pour être résolu, afin que les mesures soient plus précises.
 
+Les circuits peuvent être groupés selon les composants ou bien selon les échelons : en d'autres termes, il est possible de générer toute la liste des résistances, puis des condensateurs et enfin des bobines, ou bien créer une suite de R-C-L.\bigskip
 
-
-\section{Nouveau profilage}
-
-Les scripts Perl proposés dans le code source de miniXyce permettent de générer des échelles RC ou RLC aussi grandes que nécessaire. Deux scripts génèrent un même circuit à une différence près : dans le second, les composants électroniques sont groupés par types (résistances, condensateurs, bobines), alors qu'ils le sont par paquets R-C-L avec le premier. Cela peut avoir son importance selon le partage des tâches qui est fait entre processus. Nous ferrons donc nos mesures sur ces deux circuits : cirRLC100.net et cirRLC100\_bis.net, qui comportent 100 échelons chacun sur une échelle RLC.
-
-
-% ajouter les figures + analyser : dire si les temps sont toujours les mêmes que précédemment avec le petit profil, etc.
-
-
-
-
-
-
-\section{Profilage MAQAO}
-
-Les circuits précédents s'exécutant en moins d'une seconde, l'outil de profilage MAQAO considère que les mesures sont trop courtes. Nous allons donc créer deux circuits plus imposants (10 fois plus gros) : cirRLC1000.net et cirRLC1000\_bis.net .
-
-Après avoir effectué les mesures sur la version parallèle pour 1, 2, 3 et 4 processus MPI, le rapport MAQAO ainsi que le temps d'exécution du programme m'ont très vite indiqué que la version de miniXyce 1.0.0 était catastrophique en terme d'utilisation de MPI : avec seulement 3 processus, 97\% du temps d'exécution était passé dans des appels MPI (ce qui est beaucoup trop) pour un temps de calcul dépassant les 2 minutes.
-
-Un rapide aperçu du rapport MAQAO avec le même nombre de processus, mais pour la version 1.1 présente seulement 10\% du temps en appel MPI, pour un temps d'exécution inférieur à 1 seconde (cf figure \ref{maqao_minixyce_1.0_vs_1.1}).
+Des mesures ont été refaites sur le profilage simple (cf figure \ref{profil_minixyce_v2}) ainsi qu'avec l'aide du module Oneview de MAQAO, qui offre une étude plus détaillée.
 
 \begin{figure}
 \begin{center}
-\includegraphics[scale=0.45]{Images-Rapport/maqao_minixyce_1.0_3proc}
-\includegraphics[scale=0.45]{Images-Rapport/maqao_minixyce_1.1_3proc}
-\caption{Rapports MAQAO des versions 1.0 (à gauche) et 1.1 (à droite) de miniXyce effectués avec 3 processus MPI sur les circuits cirRLC1000.net et cirRLC1000\_1.1.net (1000 échelons RLC).}
-\label{maqao_minixyce_1.0_vs_1.1}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce_v2/Profil_miniXyce_v2_1proc.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce_v2/Profil_miniXyce_v2_2proc.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce_v2/Profil_miniXyce_v2_3proc.png}
+\includegraphics[scale=0.45]{Images-Rapport/Profil_miniXyce_v2/Profil_miniXyce_v2_4proc.png}
+\caption{Deuxième profil simple de miniXyce pour plusieurs tailles de communicateur, sur le circuit RLC100.}
+\label{profil_minixyce_v2}
+\end{center}
+\end{figure}
+
+Pour le profil simple, nous pouvons observer d'une part que le temps de calcul DCOP prend petit à petit de l'importance, alors que le temps d'I/O réduit nettement, passant de 30\% à 9\%. Les autres quantités bougent peu.
+
+Ce que ces échelles logarithmiques ne montrent pas, c'est que ces évolutions sont surtout marquées par le fait que le temps total a nettement augmenté. La figure \ref{profil_minixyce_v2_comparaison} compare ainsi les temps totaux : entre 1 et 4 processus, le temps d'exécution est presque multiplié par 10 !
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.6]{Images-Rapport/Profil_miniXyce_v2/Comparaison_profil_v2.png}
+\caption{Comparaison des temps totaux de 1 à 4 processus (sans échelle logarithmique)}
+\label{profil_minixyce_v2_comparaison}
+\end{center}
+\end{figure}
+
+
+En poursuivant les analyses avec MAQAO, toujours sur les 4 tailles de communicateur, nous obtenons les répartitions du temps total d'exécution selon le type d'appel de fonctions (cf figure \ref{maqao_minixyce_v1}). MAQAO retourne un rapport plus détaillé, mais au vu des résultats obtenus, nous n'en aurons pas besoin. En effet, les résultats sont très explicites et montrent que beaucoup de temps est perdu dans des appels MPI (jusqu'à 82\% à 3 et 4 processus).
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.45]{Images-Rapport/MAQAO_V1/miniXyce_RLC100_1proc.png}
+\includegraphics[scale=0.45]{Images-Rapport/MAQAO_V1/miniXyce_RLC100_2proc.png}
+\includegraphics[scale=0.45]{Images-Rapport/MAQAO_V1/miniXyce_RLC100_3proc.png}
+\includegraphics[scale=0.45]{Images-Rapport/MAQAO_V1/miniXyce_RLC100_4proc.png}
+\caption{Répartitions du temps d'exécution suivant les types de fonctions, d'après MAQAO Oneview (haut gauche : 1 processus, haut droite : 2 processus, bas gauche : 3 processus, bas droite : 4 processus).}
+\label{maqao_minixyce_v1}
+\end{center}
+\end{figure}
+
+
+L'origine de ce pourcentage aussi élevé est assez incertaine. Nous constatons qu'il n'y a pas une concordance parfaite avec le profil simple que nous avons fait sans MAQAO : les I/O ne représentent plus une partie aussi importante (MAQAO ne les présente même pas, serait-ce dû à une mauvaise utilisation de l'outil ?).
+
+Même si 6 appels successifs à Allreduce sont fait dans le code, ils ne représenteraient au maximum que 0.5\%. L'hypothèse que nous pouvons avancer est la suivante :
+\begin{itemize}
+\item la période transitoire est celle qui prend le plus de temps car elle appelle des fonctions de calculs coûteuses
+\item elle doit aussi être mal organisée au niveau des communications MPI, ce qui expliquerait le taux relevé par MAQAO.
+\end{itemize}\bigskip
+
+% à ce stade, j'ai pensé à changer de version, mais...
+\`A ce stade de mon étude, j'ai pensé à changer de version pour la 1.1 développée par Thornquist \cite{minixyce-code} à titre de comparaison. Et en effet, les résultats ont été bien plus satisfaisants pour la répartition, avec un taux des appels MPI à seulement 10\% pour 3 processus (cf figure \ref{maqao_minixyce_1.1}).
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.5]{Images-Rapport/maqao_minixyce_1.1_3proc.png}
+\caption{Rapport MAQAO Oneview pour la version 1.1 de miniXyce, avec 3 processus.}
+\label{maqao_minixyce_1.1}
 \end{center}
 \end{figure}
 
@@ -444,9 +474,38 @@ Rappelons que nous avions écarté la version 1.1 pour plusieurs raisons :
 \item son rapport YAML (profil des temps) comporte de nouvelles entrées (residual load time, jacobian load time, jacobian assembly time) mais ne précise plus le temps total.
 \end{itemize}
 
-Au vu des performances sur le profil MAQAO, il me semble plus que judicieux d'étudier plus en détails cette version 1.1 .
+J'ai donc analysé en détails le code source afin de voir s'il était possible de rajouter les résultats et la mesure du temps total. Cependant, après examen des commits, j'ai laissé cette idée de côté car de nombreuses modifications sur les méthodes de distribution des vecteurs parmi les processus ont été mises en place, et le solveur même ne semblait plus être le cœur de l'étude (le parsing et la généricité des classes modélisant les appareils électroniques ont primé).
 
-\subsection{Différences entre versions 1.0 et 1.1}
+Nous poursuivrons notre analyse en essayant de corriger la version 1.0, plutôt qu'en "annulant" des ajouts de la 1.1 .
+
+
+
+
+
+
+\section{Un peu de génie logiciel}
+
+La version de miniXyce 1.0.0 possède le désavantage d'avoir un Makefile supprimant les versions antérieures de l'exécutable, même si celui-ci est en séquentiel alors que l'on cherche à compiler en parallèle (et inversement). J'ai commencé par le modifier afin d'avoir deux versions qui puissent coexister, et que des dossiers soient générés pour séparer fichiers objets et exécutables. Il est ainsi possible de compiler successivement avec "\textbf{make}", puis avec "\textbf{make -f Makefile.gnu.serial -B}" pour obtenir les deux versions (l'option -B force la recompilation des fichiers objets qui seraient prévus pour une version parallèle).
+
+Par ailleurs, le script de lancement des mesures du profil simple a été étoffé de sorte à effectuer aussi le traitement en automatique, et à être plus générique, sans avoir à modifier le code source selon les choix de mesures (tailles de communicateurs MPI étudiées, nombre de répétitions).
+
+Enfin, deux warnings, hérités du code d'origine (et ayant subsistés à chaque commit du dépôt officiel...) ont été corrigés : 
+\begin{itemize}
+\item le premier indiquait que le code de retour d'un appel système de création de dossier n'était pas pris en compte. Il a suffit d'ajouter une condition \textit{if} et un message d'erreur pour le régler.
+\item le deuxième était plus fin et précisait qu'un buffer d'écriture était potentiellement trop petit pour contenir tous les caractères imposés. En comptant le nombre théorique minimum d'octets nécessaires, j'ai pu régler ce deuxième warning.
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

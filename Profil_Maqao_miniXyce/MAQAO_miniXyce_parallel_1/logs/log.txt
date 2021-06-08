@@ -1,8 +1,0 @@
-********************************************************************************
-
-MAQAO 2.13.2 - bc14664714af98ecc0478b407ba8033dd28e872a::20210305-145101 || 2021/03/05
-
-maqao.intel64 oneview -create-report=one -c=config_miniXyce.lua -xp=MAQAO_miniXyce_parallel_1 
-
-Info: OMP_NUM_THREADS not set, it will be considered as equal to 1
-CMD:  OMP_NUM_THREADS=1   /home/robin/Documents/MAQAO/maqao.intel64.2.13.2/maqao.intel64 lprof  --xp=/home/robin/Documents/Stage_M1/Stage_M1_Miniapp/Profil_Maqao_miniXyce/MAQAO_miniXyce_parallel_1/tools/lprof_npsu --mpi-command="mpirun -np 1" ppn=1   -- /home/robin/Documents/Stage_M1/Stage_M1_Miniapp/Profil_Maqao_miniXyce/MAQAO_miniXyce_parallel_1/binaries/miniXyce.x -c cirRLC1000.net --pf params.txt

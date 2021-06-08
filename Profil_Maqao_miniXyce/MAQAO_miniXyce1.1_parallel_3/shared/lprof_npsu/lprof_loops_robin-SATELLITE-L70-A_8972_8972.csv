@@ -1,5 +1,0 @@
-loop_id;module;function_name;function_id;source_info;level;time_p;time_s;time_s_min;time_s_avg;time_s_max;cov_deviation;nb_threads;
-100;miniXyce.x;mX_DAE_utils::evaluate_b(double, mX_DAE_utils::mX_DAE*);81;;Innermost;15.38;0.01;;;;;;
-198;miniXyce.x;mX_matrix_utils::init_value(mX_matrix_utils::distributed_sparse_matrix&, double);155;;Innermost;7.69;0;;;;;;
-111;miniXyce.x;mX_device_utils::mX_resistor::load_matrices();99;;Single;7.69;0;;;;;;
-94;miniXyce.x;mX_DAE_utils::evaluate_b(double, mX_DAE_utils::mX_DAE*);81;;Outermost;7.69;0;;;;;;

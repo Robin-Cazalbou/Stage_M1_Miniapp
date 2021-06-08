@@ -1,5 +1,0 @@
-Node;Process;Thread;System (%);Binary (%);Time (s);Math (%);OMP (%);String (%);Others (%);IO (%);Memory (%);MPI (%);Pthread (%);
-_ALL;_ALL;_ALL;31.79;62.43;2.6;0;0;0;5.39;0.39;0;0;0;
-robin-SATELLITE-L70-A;_ALL;_ALL;31.79;62.43;2.6;0;0;0;5.39;0.39;0;0;0;
-robin-SATELLITE-L70-A;6655;_ALL;31.79;62.43;2.6;0;0;0;5.39;0.39;0;0;0;
-robin-SATELLITE-L70-A;6655;6655;31.79;62.43;2.6;0;0;0;5.39;0.39;0;0;0;
