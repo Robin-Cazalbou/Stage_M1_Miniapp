@@ -8,6 +8,25 @@
 \usepackage{amssymb,amsthm,amsfonts}
 \usepackage{url,color}
 \usepackage{listings}
+% -----------
+% Pour la couleur dans les zones de code source (lstlisting)
+% cf https://en.wikibooks.org/wiki/LaTeX/Source_Code_Listings
+\usepackage{xcolor}
+\lstdefinestyle{customc}{
+  belowcaptionskip=1\baselineskip,
+  breaklines=true,
+  frame=L,
+  xleftmargin=\parindent,
+  language=C,
+  showstringspaces=false,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\bfseries\color{green!40!black},
+  commentstyle=\itshape\color{purple!40!black},
+  identifierstyle=\color{blue},
+  stringstyle=\color{orange},
+}
+\lstset{escapechar=@,style=customc}
+% ----------
 \usepackage{graphicx}
 \usepackage{geometry}
 \usepackage{calc}
@@ -492,8 +511,49 @@ Par ailleurs, le script de lancement des mesures du profil simple a été étoff
 Enfin, deux warnings, hérités du code d'origine (et ayant subsistés à chaque commit du dépôt officiel...) ont été corrigés : 
 \begin{itemize}
 \item le premier indiquait que le code de retour d'un appel système de création de dossier n'était pas pris en compte. Il a suffit d'ajouter une condition \textit{if} et un message d'erreur pour le régler.
-\item le deuxième était plus fin et précisait qu'un buffer d'écriture était potentiellement trop petit pour contenir tous les caractères imposés. En comptant le nombre théorique minimum d'octets nécessaires, j'ai pu régler ce deuxième warning.
+\item le deuxième était plus fin et précisait qu'un buffer d'écriture était potentiellement trop petit pour contenir tous les caractères imposés. En comptant le nombre théorique minimum d'octets nécessaires, j'ai pu régler ce deuxième warning en agrandissant le buffer.
 \end{itemize}
+
+
+\section{Recherche des fonctions chronophages}
+
+\'Etant donné que plus de 99\% du temps d'exécution est pris par la période transitoire, mais que seulement 10\% (à partir de 2 processus) est pris par les I/O, la perte de temps due aux appels MPI se situe dans une zone précise de la fonction \textit{main} : nous l'appellerons "zone critique MPI" :
+
+\begin{lstlisting}
+trans_steps++;
+
+std::vector<double> b = evaluate_b(t,dae);
+
+std::vector<double> RHS;
+sparse_matrix_vector_product(B,x,RHS);
+
+for (int i = 0; i < num_my_rows; i++)
+{
+	RHS[i] /= t_step;
+	RHS[i] += b[i];
+}
+
+gmres(A,RHS,x,tol,res,k,x,iters,restarts);
+
+total_gmres_iters += iters;
+total_gmres_res += res;
+\end{lstlisting}
+
+Ce code étant situé dans une boucle \textit{while}, il est répété autant de fois qu'il y a de pas de temps choisis pour la simulation.
+
+Dans cette zone critique, une boucle effectue seulement des opérations arithmétiques simples sur un vecteur, et trois fonctions sont appelées :
+\begin{itemize}
+\item \textbf{\textit{evaluate\_b}} : cette fonction, définie dans mX\_linear\_DAE.cpp, ne fait que des accès et modifications sur un vecteur, sans appels MPI,
+\item \textbf{\textit{sparse\_matrix\_vector\_product}} : définie dans mX\_sparse\_matrix.cpp, elle consiste simplement à calculer le produit matrice-vecteur $A\times x$, dans le cas où $x$ est distribué entre les processus, et $A$ est creuse, linéarisée sous forme de liste chaînée et distribuée elle aussi entre les processus (par blocs de lignes). Elle effectue de nombreux envois/réceptions avec MPI\_Send/MPI\_Recv,
+\item \textbf{\textit{gmres}} : définie aussi dans mX\_sparse\_matrix.cpp, elle résout un système linéaire par la méthode itérative GMRES. Elle fait elle-même appel à \textit{sparse\_matrix\_vector\_product} à 3 reprises, dont 2 à l'intérieur de boucle \textit{while}, ainsi qu'à MPI\_Allreduce. Elle appelle aussi la fonction \textbf{\textit{norm}} qui calcule une norme sur un vecteur distribué entre processus (notamment grâce à un MPI\_Allreduce).
+\end{itemize}
+
+Au vu de cette analyse, les trois fonctions \textbf{\textit{sparse\_matrix\_vector\_product}}, \textbf{\textit{gmres}} et \textbf{\textit{norm}} sont susceptibles de causer des ralentissements dans les communications et synchronisations inter-processus.
+
+% expliquer la méthode de mesure du temps de ces fonctions : conception de coroutines et d'une variable statique
+% on appelle le timer en début et fin de fonction à mesurer, puis on appelle la coroutine en y mettant la valeur du temps écoulé. En fin de simulation, au moment d'afficher les valeurs de temps (et de les mettre dans un YAML), on appelle la coroutine avec un nombre négatif (par exemple -1) et cela retourne le temps total passé dans la fonction mesurée, cumulé sur tous les appels à cette fonction. Il faudra ensuite faire un traitement (en modifiant le code que j'avais écris) + faire un graphique comparatif + analyser et dire sur quelle fonction il faudra qu'on fasse des efforts
+
+
 
 
 
