@@ -548,10 +548,11 @@ Dans cette zone critique, une boucle effectue seulement des opérations arithmé
 \item \textbf{\textit{gmres}} : définie aussi dans mX\_sparse\_matrix.cpp, elle résout un système linéaire par la méthode itérative GMRES. Elle fait elle-même appel à \textit{sparse\_matrix\_vector\_product} à 3 reprises, dont 2 à l'intérieur de boucle \textit{while}, ainsi qu'à MPI\_Allreduce. Elle appelle aussi la fonction \textbf{\textit{norm}} qui calcule une norme sur un vecteur distribué entre processus (notamment grâce à un MPI\_Allreduce).
 \end{itemize}
 
-Au vu de cette analyse, les trois fonctions \textbf{\textit{sparse\_matrix\_vector\_product}}, \textbf{\textit{gmres}} et \textbf{\textit{norm}} sont susceptibles de causer des ralentissements dans les communications et synchronisations inter-processus.
+Au vu de cette analyse, les trois fonctions \textbf{\textit{sparse\_matrix\_vector\_product}}, \textbf{\textit{gmres}} et \textbf{\textit{norm}} sont susceptibles de causer des ralentissements dans les communications et synchronisations inter-processus.\bigskip
 
-% expliquer la méthode de mesure du temps de ces fonctions : conception de coroutines et d'une variable statique
-% on appelle le timer en début et fin de fonction à mesurer, puis on appelle la coroutine en y mettant la valeur du temps écoulé. En fin de simulation, au moment d'afficher les valeurs de temps (et de les mettre dans un YAML), on appelle la coroutine avec un nombre négatif (par exemple -1) et cela retourne le temps total passé dans la fonction mesurée, cumulé sur tous les appels à cette fonction. Il faudra ensuite faire un traitement (en modifiant le code que j'avais écris) + faire un graphique comparatif + analyser et dire sur quelle fonction il faudra qu'on fasse des efforts
+Pour mesurer cela un peu plus finement, j'ai conçu de petites coroutines qui ont pour seul objectif de stocker dans une variable "static" le temps cumulé passé dans chacune des fonctions. Combiné avec le timer utilisé dans le code, nous pouvons ainsi obtenir le pourcentage du temps total d'exécution passé dans chacune des trois fonctions (et cela pour chaque processus).
+
+% Il faudra ensuite faire un traitement (en modifiant le code que j'avais écris) + faire un graphique comparatif + analyser et dire sur quelle fonction il faudra qu'on fasse des efforts
 
 
 

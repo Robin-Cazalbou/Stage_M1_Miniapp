@@ -1,28 +1,28 @@
 //@HEADER
 // ************************************************************************
-// 
+//
 //               miniXyce: A simple circuit simulation benchmark code
 //                 Copyright (2011) Sandia Corporation
-// 
+//
 // Under terms of Contract DE-AC04-94AL85000, there is a non-exclusive
 // license for use of this work by or on behalf of the U.S. Government.
-// 
+//
 // This library is free software; you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as
 // published by the Free Software Foundation; either version 2.1 of the
 // License, or (at your option) any later version.
-//  
+//
 // This library is distributed in the hope that it will be useful, but
 // WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Lesser General Public License for more details.
-//  
+//
 // You should have received a copy of the GNU Lesser General Public
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 // USA
-// Questions? Contact Michael A. Heroux (maherou@sandia.gov) 
-// 
+// Questions? Contact Michael A. Heroux (maherou@sandia.gov)
+//
 // ************************************************************************
 //@HEADER
 
@@ -46,6 +46,9 @@
 #include "YAML_Doc.hpp"
 
 
+#include "coroutines.h"
+
+
 #ifdef HAVE_MPI
 #include "mpi.h"
 #endif
@@ -59,9 +62,9 @@ int main(int argc, char* argv[])
 {
 	// this is of course, the actual transient simulator
 	int p=1, pid=0, n=0;
-#ifdef HAVE_MPI	
+#ifdef HAVE_MPI
 	MPI_Init(&argc,&argv);
-	
+
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
 	MPI_Comm_rank(MPI_COMM_WORLD, &pid);
 #endif
@@ -95,7 +98,7 @@ int main(int argc, char* argv[])
         doc.add("Netlist_parsing_time",tend);
 
         // document circuit and matrix attributes
- 
+
         doc.add("Netlist_file",ckt_netlist_filename.c_str());
 
         int total_devices = num_voltage_sources + num_current_sources + num_resistors + num_capacitors + num_inductors;
@@ -135,13 +138,13 @@ int main(int argc, char* argv[])
         doc.get("Matrix_attributes")->add("NNZ_per_proc_MIN",min_nnz);
         doc.get("Matrix_attributes")->add("NNZ_per_proc_MAX",max_nnz);
         doc.get("Matrix_attributes")->add("NNZ_per_proc_AVG",(double)sum_nnz/p);
-        
+
 	// compute the initial condition if not specified by user
 
 	int start_row = dae->A->start_row;
 	int end_row = dae->A->end_row;
         tstart = mX_timer();
-        
+
 	if (!init_cond_specified)
 	{
 		std::vector<double> init_cond_guess;
@@ -163,7 +166,7 @@ int main(int argc, char* argv[])
                 doc.get("DCOP Calculation")->add("GMRES_restarts",restarts);
                 doc.get("DCOP Calculation")->add("GMRES_native_residual",res);
 	}
-        else 
+        else
         {
                 doc.add("DCOP Calculation","");
                 doc.get("DCOP Calculation")->add("Init_cond_specified", true);
@@ -179,20 +182,20 @@ int main(int argc, char* argv[])
 	std::string out_filename = ckt_netlist_filename.substr(0,dot_position) + "_tran_results.prn";
 	std::ofstream* outfile=0;
 
-#ifdef HAVE_MPI	
+#ifdef HAVE_MPI
         // Prepare rcounts and displs for a contiguous gather of the full solution vector.
         std::vector<int> rcounts( p, 0 ), displs( p, 0 );
         MPI_Gather(&num_my_rows, 1, MPI_INT, &rcounts[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
         for (int i=1; i<p ; i++) displs[i] = displs[i-1] + rcounts[i-1];
 
-        std::vector<double> fullX( sum_rows, 0.0 ); 
+        std::vector<double> fullX( sum_rows, 0.0 );
         MPI_Gatherv(&x[0], num_my_rows, MPI_DOUBLE, &fullX[0], &rcounts[0], &displs[0], MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
 
         if (pid == 0)
         {
             outfile = new std::ofstream(out_filename.data(), std::ios::out);
-	
+
     	    *outfile << std::setw(18) << "TIME";
 
 	    for (int i = 0; i < sum_rows; i++)
@@ -224,7 +227,7 @@ int main(int argc, char* argv[])
 	}
 
         double io_tend = mX_timer() - tstart;
- 	
+
 	// from now you won't be needing any more Ax = b solves
 		// but you will be needing many (A + B/t_step)x = b solves
 		// so change A to (A + B/t_step) right now
@@ -246,7 +249,7 @@ int main(int argc, char* argv[])
 		{
 			int col_idx = curr->column;
 			double value = (curr->value)/t_step;
-			
+
 			distributed_sparse_matrix_add_to(A,row_idx,col_idx,value,n,p);
 
 			curr = curr->next_in_row;
@@ -262,6 +265,10 @@ int main(int argc, char* argv[])
         int total_gmres_iters = 0;
         int trans_steps = 0;
 
+
+	double smvprod_alone_time_start, smvprod_alone_time_end;
+
+
 	while (t < t_stop)
 	{
                 trans_steps++;
@@ -274,7 +281,11 @@ int main(int argc, char* argv[])
 			// Backward Euler is used at every iteration
 
 		std::vector<double> RHS;
+
+		smvprod_alone_time_start = mX_timer();
 		sparse_matrix_vector_product(B,x,RHS);
+		smvprod_alone_time_end = mX_timer();
+		coroutine_smvprod_alone(smvprod_alone_time_end - smvprod_alone_time_start);
 
 		for (int i = 0; i < num_my_rows; i++)
 		{
@@ -289,7 +300,7 @@ int main(int argc, char* argv[])
                 total_gmres_res += res;
 
 		// write the results to file
-	        double io_tstart = mX_timer();	
+	        double io_tstart = mX_timer();
 #ifdef HAVE_MPI
                 MPI_Gatherv(&x[0], num_my_rows, MPI_DOUBLE, &fullX[0], &rcounts[0], &displs[0], MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #endif
@@ -317,16 +328,16 @@ int main(int argc, char* argv[])
 		t += t_step;
 
 	}
-	
+
 	// Hurray, the transient simulation is done!
         if (pid ==0)
-        {	
+        {
   	  outfile->close();
           delete outfile;
         }
-        
+
         // Document transient simulation performance
-     
+
         tend = mX_timer();
         double sim_end = tend - sim_start;
         doc.add("Transient Calculation","");
@@ -349,10 +360,31 @@ int main(int argc, char* argv[])
           std::cout << yaml;
         }
 
+
+				// Print coroutines' values on standard output (cout)
+				for(int i = 0; i<p; i++)
+				{
+					#ifdef HAVE_MPI
+					MPI_Barrier(MPI_COMM_WORLD);
+					#endif
+					if(i == pid)
+					{
+						std::cout << std::endl << "P" << i << " :" << std::endl;
+						std::cout << "I/O : " << io_tend << " i.e. " << 100.0*io_tend/sim_end << " % total process time" << std::endl;
+						std::cout << "Coroutine smvprod : time_spent = " << coroutine_smvprod(-1) << " i.e. " << 100.0*coroutine_smvprod(-1)/sim_end << "% total process time" << std::endl;
+						std::cout << "Coroutine smvprod out of gmres : time_spent = " << coroutine_smvprod_alone(-1) << " i.e. " << 100.0*coroutine_smvprod_alone(-1)/sim_end << "% total process time" << std::endl;
+						std::cout << "Coroutine gmres : time_spent = " << coroutine_gmres(-1) << " i.e. " << 100.0*coroutine_gmres(-1)/sim_end << "% total process time" << std::endl;
+						std::cout << "Coroutine norm : time_spent = " << coroutine_norm(-1) << " i.e. " << 100.0*coroutine_norm(-1)/sim_end << "% total process time" << std::endl;
+						std::cout << "Total time = " << sim_end << std::endl;
+					}
+				}
+
+
+
         // Clean up
         mX_linear_DAE_utils::destroy( dae );
 
-#ifdef HAVE_MPI	
+#ifdef HAVE_MPI
 	MPI_Finalize();
 #endif
 

@@ -47,7 +47,7 @@ miniXyce.x:generate_info $(OBJS) $(COM_OBJS) $(UTIL_OBJS) $(H_FILES) $(HCOM_FILE
 ifeq ($(USE_MPI), -DHAVE_MPI -DMPICH_IGNORE_CXX_SEEK)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OBJS) $(COM_OBJS) $(UTIL_OBJS) -o $(OBJDIR)/bin/miniXyce.x $(LDFLAGS) -I$(SRCDIR) -I$(COMDIR) -I$(UTILDIR)
 else
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OBJS) $(COM_OBJS) $(UTIL_OBJS) -o $(OBJDIR)/bin/miniXyce_serial.x $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OBJS) $(COM_OBJS) $(UTIL_OBJS) -o $(OBJDIR)/bin/miniXyce_serial.x $(LDFLAGS) -I$(SRCDIR) -I$(COMDIR) -I$(UTILDIR)
 endif
 
 $(OBJDIR)/%.o:$(SRCDIR)/%.cpp $(H_FILES)

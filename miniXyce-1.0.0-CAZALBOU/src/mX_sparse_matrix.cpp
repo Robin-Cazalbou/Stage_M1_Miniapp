@@ -1,28 +1,28 @@
 //@HEADER
 // ************************************************************************
-// 
+//
 //               miniXyce: A simple circuit simulation benchmark code
 //                 Copyright (2011) Sandia Corporation
-// 
+//
 // Under terms of Contract DE-AC04-94AL85000, there is a non-exclusive
 // license for use of this work by or on behalf of the U.S. Government.
-// 
+//
 // This library is free software; you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as
 // published by the Free Software Foundation; either version 2.1 of the
 // License, or (at your option) any later version.
-//  
+//
 // This library is distributed in the hope that it will be useful, but
 // WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Lesser General Public License for more details.
-//  
+//
 // You should have received a copy of the GNU Lesser General Public
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 // USA
-// Questions? Contact Michael A. Heroux (maherou@sandia.gov) 
-// 
+// Questions? Contact Michael A. Heroux (maherou@sandia.gov)
+//
 // ************************************************************************
 //@HEADER
 
@@ -38,6 +38,9 @@
 #include <map>
 #include <cmath>
 #include <iostream>
+
+#include "mX_timer.h"
+#include "coroutines.h"
 
 using namespace mX_matrix_utils;
 
@@ -70,7 +73,7 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 
 		distributed_sparse_matrix_entry* prev = 0;
 		distributed_sparse_matrix_entry* curr = M->row_headers[row_idx-M->start_row];
-	
+
 		while ((curr) && (!inserted))
 		{
 			if (curr->column < col_idx)
@@ -181,16 +184,12 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 		}
 
 		bool send_instruction_posted = false;
-		
-		std::list<data_transfer_instruction*>::iterator it1;
 
-		for (it1 = M->send_instructions.begin(); it1 != M->send_instructions.end(); it1++)
+		for (auto it1 = M->send_instructions.begin(); it1 != M->send_instructions.end(); it1++)
 		{
 			if ((*it1)->pid == pid_to_send_info)
 			{
-				std::list<int>::iterator it2;
-
-				for (it2 = ((*it1)->indices).begin(); it2 != ((*it1)->indices).end(); it2++)
+				for (auto it2 = ((*it1)->indices).begin(); it2 != ((*it1)->indices).end(); it2++)
 				{
 					if (*it2 == col_idx)
 					{
@@ -225,26 +224,34 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 {
 	// compute the matrix vector product A*x and return it in y
 		// assuming x contains only x[start_row] to x[end_row]
-	
-	// at the end of this function, it is guaranteed that
-		// y[0] to y[end_row-start_row] will contain the correct entries of (Ax)[start_row] to (Ax)[end_row] 
 
-        int start_row = A->start_row;
+	// at the end of this function, it is guaranteed that
+		// y[0] to y[end_row-start_row] will contain the correct entries of (Ax)[start_row] to (Ax)[end_row]
+
+
+  // Time measured for the call of the function
+  double smvprod_time_start = mX_timer();
+
+
+  int start_row = A->start_row;
 	int end_row = A->end_row;
 
 #ifdef HAVE_MPI
 	// ok, now's the time to follow the send instructions that each pid has been maintaining
 
-	std::list<data_transfer_instruction*>::iterator it1;
-	
-	for (it1 = A->send_instructions.begin(); it1 != A->send_instructions.end(); it1++)
-	{
-		std::list<int>::iterator it2;
+  // each process fill a send_buffer of pairs (index, x[index]) for each process it has at least one value to send
+  // index is casted as a double for the send, and re-casted as an int when received
+  std::vector<double> send_buffer;
 
-		for (it2 = (*it1)->indices.begin(); it2 != (*it1)->indices.end(); it2++)
+	for (auto it1 = A->send_instructions.begin(); it1 != A->send_instructions.end(); it1++)
+	{
+		for (auto it2 = (*it1)->indices.begin(); it2 != (*it1)->indices.end(); it2++)
 		{
-			MPI_Send(&x[(*it2)-start_row],1,MPI_DOUBLE,(*it1)->pid,*it2,MPI_COMM_WORLD);
+      send_buffer.push_back((double)*it2);
+      send_buffer.push_back(x[(*it2)-start_row]);
 		}
+    // Tag is arbitrary choosen
+    MPI_Send(send_buffer.data(), send_buffer.size(), MPI_DOUBLE, (*it1)->pid, 100, MPI_COMM_WORLD);
 	}
 #endif
 
@@ -262,7 +269,6 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 		{
 			y[i-start_row] = (double)(0);
 		}
-
 		else
 		{
 			y.push_back((double)(0));
@@ -273,14 +279,13 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 		while(curr)
 		{
 			int col_idx = curr->column;
-			
+
 			if ((col_idx >= start_row) && (col_idx <= end_row))
 			{
 				// aha, this processor has the correct x_vec entry locally
 
 				y[i-start_row] += (curr->value)*x[col_idx-start_row];
 			}
-
 #ifdef HAVE_MPI
 			else
 			{
@@ -304,23 +309,60 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 							// puts the entry in the map for future reference
 							// continues with the matrix vector multiplication
 
-					double x_vec_entry;
-		                        MPI_Status status;
-					MPI_Recv(&x_vec_entry,1,MPI_DOUBLE,MPI_ANY_SOURCE,col_idx,MPI_COMM_WORLD,&status);
+          // When the process receive a message, it adds all the values it received in the map before continuing multiplication
+          // the size of the message isn't known, so we have to probe
+          // the tag has to be the first index needed, but we just don't know from each process it will come from
 
-					x_vec_entries[col_idx] = x_vec_entry;
-					y[i-start_row] += x_vec_entry*(curr->value);
+          // When a process receive a message, it's not sure it contains the expected value (the message can come from the wrong sender)
+          // so it adds all the values in the map, then checks if the expected value is there
+          // if not, it prepares itself to receive another message untill the expected value is received
+          MPI_Status status;
+          int size_msg;
+
+          do
+          {
+            MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status); // because the size of all messages are unknown
+            MPI_Get_count(&status, MPI_DOUBLE, &size_msg);
+            double* recv_buffer = (double*) malloc(size_msg*sizeof(double));
+            MPI_Recv(recv_buffer, size_msg, MPI_DOUBLE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+            // add the received entries to the map
+  					for(int j = 0; j<size_msg; j+=2)
+            {
+              x_vec_entries[(int)recv_buffer[j]] = recv_buffer[j+1];
+            }
+            free(recv_buffer);
+
+            // look for the expected value in the map
+            it3 = x_vec_entries.find(col_idx);
+
+          } while( it3 == x_vec_entries.end() ); // did he receive the expected value ?
+
+
+          // continue the multiplication for the index that wasn't known before the reception
+          y[i-start_row] += (double)(it3->second)*(curr->value);
+
 				}
 			}
 #endif
 			curr = curr->next_in_row;
-		}
-	}
+		} // end while
+	} // end for
+
+
+  // End of time measuring : time spent in the function is added to the previous time spent using the coroutine_smvprod
+  double smvprod_time_end = mX_timer();
+  coroutine_smvprod(smvprod_time_end - smvprod_time_start);
+
 }
 
 double mX_matrix_utils::norm(std::vector<double> &x)
 {
 	// at last, a function that's relatively simple to implement in parallel
+
+
+  double norm_time_start = mX_timer();
+
 
 	double global_norm;
 	double local_norm = 0.0;
@@ -335,16 +377,25 @@ double mX_matrix_utils::norm(std::vector<double> &x)
         global_norm = local_norm;
 #endif
 
+
+  double norm_time_end = mX_timer();
+  coroutine_norm(norm_time_end - norm_time_start);
+
+
 	return std::sqrt(global_norm);
 }
 
 void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b, std::vector<double> &x0, double &tol, double &err, int k, std::vector<double> &x, int &iters, int &restarts)
 {
 	// here's the star of the show, the guest of honor, none other than Mr.GMRES
-	
+
 	// first Mr.GMRES will compute the error in the initial guess
 		// if it's already smaller than tol, he calls it a day
 		// otherwise he settles down to work in mysterious ways his wonders to perform
+
+
+  double gmres_time_start = mX_timer();
+
 
 	int start_row = A->start_row;
 	int end_row = A-> end_row;
@@ -369,7 +420,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b
 			// the initial guess is already stored in x
 
 		restarts++;
-		
+
 		std::vector<double> temp1;
 		std::vector< std::vector<double> > V;
 		sparse_matrix_vector_product(A,x,temp1);
@@ -398,7 +449,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b
 		std::vector<double> sines;
 		std::vector<double> g;
 		std::vector< std::vector<double> > R;
-		
+
 		g.push_back(beta);
 
 		// ok, Mr.GMRES has determined the initial values for
@@ -423,14 +474,14 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b
 
 			for (int i = start_row; i <= end_row; i++)
 			{
-				temp1.push_back(V[i-start_row][iters-1]);	
+				temp1.push_back(V[i-start_row][iters-1]);
 			}
 			sparse_matrix_vector_product(A,temp1,temp2);
 
 			// Right, Mr.GMRES now has the matrix vector product
-				// now he will orthogonalize this vector with the previous ones 
+				// now he will orthogonalize this vector with the previous ones
 					// with some help from Messrs Gram and Schmidt
-			
+
 			std::vector<double> new_col_H;
 
 			for (int i = 0; i < iters; i++)
@@ -446,7 +497,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b
 				MPI_Allreduce(&local_dot,&global_dot,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 #else
                                 global_dot = local_dot;
-#endif				
+#endif
 				for (int j = start_row; j <= end_row; j++)
 				{
 					temp2[j-start_row] -= global_dot*V[j-start_row][i];
@@ -480,7 +531,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b
 			double r = std::sqrt(new_col_H[iters-1]*new_col_H[iters-1] + new_col_H[iters]*new_col_H[iters]);
 			cosines.push_back(new_col_H[iters-1]/r);
 			sines.push_back(new_col_H[iters]/r);
-			
+
 			double old_i = new_col_H[iters-1];
 			double old_i_plus_one = new_col_H[iters];
 
@@ -537,13 +588,18 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b
 		// the new x is also ready
 			// either return it or use it as an initial guess for the next restart
 	}
-	
+
 	// if Mr.GMRES ever reaches here, it means he's solved the problem
 
 	if (restarts < 0)
 	{
 		restarts = 0;
 	}
+
+
+  double gmres_time_end = mX_timer();
+  coroutine_gmres(gmres_time_end -gmres_time_start);
+
 }
 
 void mX_matrix_utils::destroy_matrix(distributed_sparse_matrix* A)
@@ -554,7 +610,7 @@ void mX_matrix_utils::destroy_matrix(distributed_sparse_matrix* A)
       for (int j=A->start_row, cnt=0; j<=A->end_row; ++j, ++cnt)
       {
         distributed_sparse_matrix_entry* curr = (*A).row_headers[cnt], *next = 0;
-        
+
         while (curr)
         {
           next = curr->next_in_row;
@@ -562,7 +618,7 @@ void mX_matrix_utils::destroy_matrix(distributed_sparse_matrix* A)
           curr = next;
         }
       }
-      A->row_headers.resize(0);  
+      A->row_headers.resize(0);
 
       // delete send_instructions
       while (!A->send_instructions.empty())
@@ -588,14 +644,14 @@ void mX_matrix_utils::print_vector(std::vector<double>& x)
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
 #endif
 
-  for (int i=0; i< numprocs; ++i) 
+  for (int i=0; i< numprocs; ++i)
   {
-    if (i == procnum) 
+    if (i == procnum)
     {
       if (procnum == 0)
         std::cout << "Proc\tLocal Index\tValue" << std::endl;
 
-      for (int j=0; j<x.size(); ++j) 
+      for (int j=0; j<x.size(); ++j)
       {
         std::cout << procnum << "\t" << j << "\t" << x[j] << std::endl;
       }
@@ -641,4 +697,3 @@ void mX_matrix_utils::print_matrix(distributed_sparse_matrix &A)
 #endif
   }
 }
-
