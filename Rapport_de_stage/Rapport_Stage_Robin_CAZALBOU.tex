@@ -552,7 +552,68 @@ Au vu de cette analyse, les trois fonctions \textbf{\textit{sparse\_matrix\_vect
 
 Pour mesurer cela un peu plus finement, j'ai conçu de petites coroutines qui ont pour seul objectif de stocker dans une variable "static" le temps cumulé passé dans chacune des fonctions. Combiné avec le timer utilisé dans le code, nous pouvons ainsi obtenir le pourcentage du temps total d'exécution passé dans chacune des trois fonctions (et cela pour chaque processus).
 
+Ce que l'on observe alors, c'est que pour un seul processus MPI, le temps d'I/O est de l'ordre de 45\% du temps total, et celui de \textit{gmres} est aux alentours de 54\% (dont 17\% passé dans la multiplication matrice-vecteur).
+
+En passant à 4 processus, le temps d'exécution est déjà multiplié par 25 (passant de 3.1 à 78 s !) et la part d'I/O passe en dessous des 3\% pour le processus 0. Certains processus passent alors presque 99\% du temps dans la multiplication matrice-vecteur appelée par \textit{gmres}. Une disparité très forte apparaît alors sur les mesures, ce qui nous amène à la conclusion que les processus passent le plus clair de leur temps à attendre un autre processus pour une synchronisation.
+
+
 % Il faudra ensuite faire un traitement (en modifiant le code que j'avais écris) + faire un graphique comparatif + analyser et dire sur quelle fonction il faudra qu'on fasse des efforts
+
+
+
+\section{Première optimisation efficace}
+
+Détaillons la façon dont \textit{sparse\_matrix\_vector\_product} est implémentée. Tout d'abord, elle se base sur une structure de matrice creuse distribuée entre processus :
+\begin{itemize}
+\item chaque processus possède un certain nombre de lignes de la matrice,
+\item chaque ligne est caractérisée par un pointeur vers le premier "bloc valeur" de la ligne. Ces "blocs valeurs" (appelés \textit{distributed\_sparse\_matrix\_entry}) stockent l'indice de la colonne ainsi que la valeur de la matrice contenue sur cette ligne et cette colonne. Chaque "bloc valeur" contient aussi un pointeur vers le bloc suivant de la ligne, ce qui constitue une liste chaînée,
+\item chaque processus connaît ainsi son indice de début et de fin des lignes qui lui sont attribuées. La distribution de la matrice est donc réalisée, et pour modéliser une matrice creuse, nous gagnons en efficacité de stockage.
+\end{itemize}
+
+Cependant, tout au long de l'application, une opération matricielle intervient : la multiplication matrice-vecteur. Or, avec le découpage proposé, chaque processus ne connaît du vecteur qu'une sous-partie associée aux lignes qui lui ont été attribuées. Des communications sur les autres valeurs du vecteur sont alors nécessaires. Prenons l'exemple suivant (fictif) de calcul du produit $Ax$ :
+
+\[
+A =
+\begin{pmatrix}
+0 & -1 & 0 & -2\\
+0 & 3 & 0 & 0\\
+0 & 0 & 1 & 0\\
+6 & 0 & 0 & 3\\
+\end{pmatrix} \quad \text{et} \quad
+x = 
+\begin{pmatrix}
+1\\
+2\\
+3\\
+4
+\end{pmatrix}
+\]
+
+La distribution entre processus est telle que P0 possède les deux premières lignes et P1 les deux suivantes. Lorsque P0 voudra calculer la première coordonnée de $Ax$, il devrait calculer : $(-1) * 2 + (-2) * 4$. Mais P0 ne connaît pas la valeur $4$ car elle ne fait pas partie des deux premières lignes : un envoi de cette valeur de la part de P1 est nécessaire pour pouvoir ensuite faire le calcul. Il en est de même avec la valeur 1 à envoyer à P1, lorsqu'il voudra calculer la dernière composante de $Ax$ ($6*1+3*4$, la valeur 1 n'étant pas dans les lignes de $x$ qu'il possède).
+
+Ainsi, avec ce stockage, il faut effectuer $n(n-1)$ échanges de messages dans le pire cas (chaque processus devant envoyer un message à tous les autres), soit une complexité en messages en $O(n^2)$ avec $n \in \N^*$ la taille de la matrice.\bigskip
+
+Pour que chaque processus sache à qui il doit envoyer telle ou telle valeur, une autre structure contenant toutes ces informations est conservée et construite en même temps que la matrice. Ainsi, lors de la multiplication matrice-vecteur, dès qu'un processus ne possède pas la valeur dont il a besoin, il se met en position de réception de message et stockera la valeur temporairement pour toute la durée de la multiplication matrice-vecteur.\bigskip
+
+\textbf{\underline{Problématique soulevée :}} avec ce schéma de communications, le code d'origine proposait un envoi de message \textbf{par valeur}. Ainsi, le nombre d'échanges pouvait être multiplié par un facteur compris entre 2 et $\frac{(N-1)n}{N}$ (selon la répartition des valeurs non nulles sur les lignes), ce qui donnait de l'ordre de $O(n^3)$ échanges de messages.
+
+Précisons par ailleurs que les envois sont faits massivement dès le début de l'appel de la fonction, ce qui fait que tout processus attendant un message finira tôt ou tard par avoir ce qu'il attend.\bigskip
+
+\textbf{\underline{Solution proposée :}} pour réduire les envois, lors de la phase de conception des messages, nous remplissons par processus un "buffer" contenant toutes les valeurs attendues. Un processus s'étant aperçu qu'il lui manquait une valeur devrait alors sonder (avec MPI\_Probe) pour déterminer si un message est en attente pour lui. Lorsque c'est le cas, il récupère la taille du message et, grâce à un "buffer" temporaire de réception, il stocke toutes ces valeurs dont il aura forcément besoin à un moment dans une \textit{std::map} (dictionnaire clé-valeur avec la clé étant l'indice de la composante du vecteur $x$). Ne sachant pas à l'avance quel processus doit lui envoyer la valeur attendue actuellement, une boucle \textit{while} effectue la vérification : si la valeur n'est pas encore dans la map, c'est que l'on a reçu d'un autre processus. Qu'à cela ne tienne, il aurait fallut récupérer cette valeur de toute façon. Lorsque la bonne valeur est enfin récupérée, le calcul se poursuit.
+
+Nous pouvons alors observer, pour le circuit cirRLC1000 notamment, que le temps d'exécution à 4 processus redescend en dessous des 5 secondes. Ce temps reste plus long que celui en séquentiel, mais cela constitue tout de même une accélération d'un facteur 15 par rapport aux 78 secondes avant modification.
+
+\textit{\underline{Remarque :}} un inter-blocage est envisageable avec cette amélioration lorsque la taille du système devient importante. En effet, les envois bufferisés deviendront des envois synchrones, et comme les réceptions ne se font qu'après tout les envois réalisés, le programme va bloquer. Une idée serait de grouper les réceptions en décidant par exemple que tous les processus de rang pair fassent leur réception d'abord. Cependant, comme chaque processus n'a connaissance de la valeur qu'il lui manque que lorsque qu'il fait des calculs, cette méthode casserait complètement le parallélisme.
+
+Il faudrait alors modifier la structure de la matrice de sorte à ce que chaque processus sache à l'avance à qui il doit envoyer une valeur, mais aussi de qui (et donc combien) il doit en recevoir. Dans ce cas, le stockage de la matrice devient plus conséquent, mais le gain en temps devrait contre-balancer cette perte. Il faudrait dans ce cas utiliser des communications non-bloquantes pour couvrir au maximum les échanges par du calcul.\bigskip
+
+\textbf{\underline{Direction à suivre :}} pour que notre programme passe encore mieux à l'échelle, il va être nécessaire de réduire encore plus les phases de synchronisations :
+\begin{itemize}
+\item Dans \textbf{gmres}, qui reste le cœur du solveur, beaucoup de communications avec l'ensemble des processus sont réalisées, qu'il faudra essayer d'\textbf{agencer différemment},
+\item La remarque précédente peut aussi être prise en compte afin de voir si le coût de la multiplication matrice-vecteur peut encore être diminué,
+\item Enfin, les I/O, bien que moins consistants dans le temps de certains processus, prennent tout de même toujours 30\% du temps du processus 0 (qui est le seul à faire les I/O). Nous pouvons ainsi penser que le temps d'attente des autres processus est accentué du fait de ce partage non équitable du travail : il faudrait alors paralléliser les I/O.
+\end{itemize}
+
 
 
 

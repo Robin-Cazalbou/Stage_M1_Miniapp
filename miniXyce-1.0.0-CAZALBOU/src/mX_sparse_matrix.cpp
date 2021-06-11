@@ -220,7 +220,7 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 
 }
 
-void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> &x, std::vector<double> &y)
+void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y)
 {
 	// compute the matrix vector product A*x and return it in y
 		// assuming x contains only x[start_row] to x[end_row]
@@ -356,7 +356,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 
 }
 
-double mX_matrix_utils::norm(std::vector<double> &x)
+double mX_matrix_utils::norm(std::vector<double> const& x)
 {
 	// at last, a function that's relatively simple to implement in parallel
 
@@ -385,7 +385,7 @@ double mX_matrix_utils::norm(std::vector<double> &x)
 	return std::sqrt(global_norm);
 }
 
-void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> &b, std::vector<double> &x0, double &tol, double &err, int k, std::vector<double> &x, int &iters, int &restarts)
+void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts)
 {
 	// here's the star of the show, the guest of honor, none other than Mr.GMRES
 
