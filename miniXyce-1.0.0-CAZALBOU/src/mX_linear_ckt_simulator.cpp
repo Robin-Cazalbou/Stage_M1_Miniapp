@@ -152,9 +152,9 @@ int main(int argc, char* argv[])
 
 
 	// ====== Compute the initial condition if not specified by user ======
+	tstart = mX_timer();
 	int start_row = dae->A->start_row;
 	int end_row = dae->A->end_row;
-  tstart = mX_timer();
 
 	if (!init_cond_specified)
 	{
@@ -341,6 +341,8 @@ int main(int argc, char* argv[])
 	  	*outfile << std::fixed << std::setw(20)  << iters << std::setw(20) << restarts << std::endl;
 		}
 
+		MPI_Barrier(MPI_COMM_WORLD);
+
     io_tend += (mX_timer() - io_tstart);
 
 		// increment t
@@ -398,6 +400,9 @@ int main(int argc, char* argv[])
 			std::cout << "Total time = " << sim_end << std::endl;
 		}
 	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
+	print_matrix(*A);
 
 	// Clean up
 	mX_linear_DAE_utils::destroy( dae );

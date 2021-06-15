@@ -309,10 +309,6 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 							// puts the entry in the map for future reference
 							// continues with the matrix vector multiplication
 
-          // When the process receive a message, it adds all the values it received in the map before continuing multiplication
-          // the size of the message isn't known, so we have to probe
-          // the tag has to be the first index needed, but we just don't know from each process it will come from
-
           // When a process receive a message, it's not sure it contains the expected value (the message can come from the wrong sender)
           // so it adds all the values in the map, then checks if the expected value is there
           // if not, it prepares itself to receive another message untill the expected value is received

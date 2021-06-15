@@ -54,7 +54,9 @@ USE_MPI = -DHAVE_MPI -DMPICH_IGNORE_CXX_SEEK
 #IA32 with GCC:
 #CPP_OPT_FLAGS = -O3 -funroll-all-loops -malign-double
 #IA64 with GCC:
-CPP_OPT_FLAGS = -O3 -std=c++11 -funroll-all-loops
+CPP_OPT_FLAGS = -Ofast -std=c++11 -march=core-avx2 -funroll-loops
+# Meilleurs pour MAQAO :
+#CPP_OPT_FLAGS = -Ofast -std=c++11 -ggdb -march=core-avx2 -funroll-loops
 #DEBUG
 #CPP_OPT_FLAGS = -O0 -ggdb
 
