@@ -617,6 +617,34 @@ Il faudrait alors modifier la structure de la matrice de sorte à ce que chaque 
 
 
 
+\chapter{Deuxième optimisation MPI}
+
+Dans le chapitre précédent, nous avons vu qu'une utilisation réduite des appels MPI avait permis de réduire drastiquement le temps d'exécution du programme pour un nombre de processus MPI supérieur ou égal à 2. Cependant, le temps restait toujours plus long que celui en séquentiel, ce qui indiquait que les communications restaient trop lourdes par rapport au temps gagné sur les calculs.
+
+Nous avons aussi vu qu'un possible blocage pouvait apparaître si les tailles de buffer d'envoi devenaient trop grosses. La solution relevée était de changer l'ordre envoi/réception selon le rang du processus : au vu de la complexité possible de la matrice, cette solution ne serait pas bénéfique car trop de processus attendraient que d'autres aient terminé leurs envois.
+
+Il reste ainsi une possibilité non exploitée : celle des communications non-bloquantes de type MPI\_Isend ou MPI\_Irecv. Leur utilisation va cependant nécessiter de nombreuses modifications dans les structures de données ainsi que dans l'écriture des algorithmes.
+
+
+\section{Nouvelle écriture de la fonction du produit matrice-vecteur}
+
+Afin de couvrir au maximum les communications MPI par du calcul ou par d'autres communications, la fonction \textit{sparse\_matrix\_vector\_product} se décomposerait ainsi en plusieurs phases :\medskip
+\begin{itemize}
+\item \textbf{\underline{Phase d'envois non-bloquants :}} chaque processus commence par initier tous ces envois en non-bloquants (ce qui couvre déjà une partie d'entre eux par d'autre envois initiés). Pour ce faire, un tableau de requêtes MPI est créé en début d'appel de fonction, ainsi que des buffers d'envoi pour chaque processus destinataire. Il est donc nécessaire de parcourir la structure \textit{send\_instructions} déjà présente, afin de compter le nombre de valeurs à envoyer par processus : cette opération étant uniquement dépendante de la matrice, il serait judicieux de créer une fonction à part, appelée uniquement lorsque la matrice est modifiée, pour mettre à jour ces données.
+\item \textbf{\underline{Phase de réceptions non-bloquantes :}} de même, toutes les réceptions non-bloquantes sont initiées, en utilisant un tableau de requêtes en début de fonction. Le problème est alors de savoir : de quels processus chacun doit-il attendre des valeurs ? Doit-il seulement en attendre ? Et si oui, combien ?
+
+Là encore, ces informations peuvent être sauvegardées avant la multiplication matrice-vecteur car elles ne dépendent que de la forme de la matrice.
+\item \textbf{\underline{Phase de "calcul diagonal" :}} chaque processus possédant les lignes du vecteur correspondantes aux lignes de sa partie de matrice, certaines multiplications peuvent être faites sans avoir besoin de communications. Il est alors nécessaire que les coefficients de la matrice ne s'éloignent "pas trop" de la diagonale (en formant un bloc carré). Il est alors envisageable de commencer certaines multiplications en attendant la fin des envois/réceptions.
+\item \textbf{\underline{Phase d'attente intermédiaire :}} si malgré toute cette couverture de communications, certaines réceptions ne sont pas encore complètes, le processus devra attendre avec MPI\_Waitall que toutes les requêtes de réceptions soient complétées.
+\item \textbf{\underline{Phase de fin des calculs :}} les calculs éloignés de la diagonale peuvent maintenant être réalisés avec les valeurs du vecteur qui ont été reçues. La multiplication matrice-vecteur est alors terminée localement.
+\item \textbf{\underline{Phase d'attente finale :}} cependant, avant de sortie de la fonction, nous n'avons aucune assurance que tous les envois soient terminés. Il nous faut nous assurer, avec MPI\_Waitall sur les requêtes d'envois cette fois ci, que tous les processus ont eu le temps de copier les valeurs du vecteurs dont ils avaient besoin. Les allocations dynamiques peuvent ensuite être désallouées.
+\end{itemize}
+
+% parler de créer aussi une fonction pour initialiser la matrice, autrement que tout en bloc dans la fonction de parsing du netlist
+
+
+
+
 
 
 
