@@ -44,11 +44,9 @@
 
 using namespace mX_matrix_utils;
 
-distributed_sparse_matrix::distributed_sparse_matrix()
-  : start_row(0), end_row(0), local_nnz(0)
-{}
+distributed_sparse_matrix::distributed_sparse_matrix() : start_row(0), end_row(0), local_nnz(0) {}
 
-void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int row_idx, int col_idx, double val, int n, int p)
+void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val, int const n, int const p)
 {
 	// implements M[row_idx][col_idx] += val
 		// man, in the distributed matrix world, this simple thing takes such a lot of effort!
@@ -64,8 +62,6 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 
 	if ((row_idx >= M->start_row) && (row_idx <= M->end_row))
 	{
-                M->local_nnz++;
-
 		// ok, so the processor that's supposed to store M[row_idx][col_idx] is here
 			// navigate through the fellow's threaded list and do the needful
 
@@ -81,35 +77,31 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 				prev = curr;
 				curr = curr->next_in_row;
 			}
+			else if (curr->column == col_idx)
+      {
+        curr->value = curr->value + val;
+        inserted = true;
+      }
+      else
+      {
+        distributed_sparse_matrix_entry* entry_ptr_1 = new distributed_sparse_matrix_entry();
+        entry_ptr_1->column = col_idx;
+        entry_ptr_1->value = val;
+        entry_ptr_1->next_in_row = curr;
+        M->local_nnz++;
 
-			else
-			{
-				if (curr->column == col_idx)
-				{
-					curr->value = curr->value + val;
-					inserted = true;
-				}
+        if (prev)
+        {
+          prev->next_in_row = entry_ptr_1;
+        }
+        else
+        {
+          M->row_headers[row_idx-M->start_row] = entry_ptr_1;
+        }
 
-				else
-				{
-					distributed_sparse_matrix_entry* entry_ptr_1 = new distributed_sparse_matrix_entry();
-					entry_ptr_1->column = col_idx;
-					entry_ptr_1->value = val;
-					entry_ptr_1->next_in_row = curr;
+        inserted = true;
+      }
 
-					if (prev)
-					{
-						prev->next_in_row = entry_ptr_1;
-					}
-
-					else
-					{
-						M->row_headers[row_idx-M->start_row] = entry_ptr_1;
-					}
-
-					inserted = true;
-				}
-			}
 		}
 
 		if (!inserted)
@@ -118,12 +110,12 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 			entry_ptr_1->column = col_idx;
 			entry_ptr_1->value = val;
 			entry_ptr_1->next_in_row = curr;
+      M->local_nnz++;
 
 			if (prev)
 			{
 				prev->next_in_row = entry_ptr_1;
 			}
-
 			else
 			{
 				M->row_headers[row_idx-M->start_row] = entry_ptr_1;
@@ -131,6 +123,61 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 
 			inserted = true;
 		}
+    // Insertion of the value is now done
+
+
+    // The receive instructions have to be filled too :
+    // either we have the vector's coordinate locally or stored in missing_coordinates_and_pid or not yet
+    if ( (col_idx < M->start_row) || (col_idx > M->end_row)) // check if the vector's corresponding entry is local
+    {
+			// Dichotomic research : which pid contains the missing value
+			int pid_to_recv_info;
+			bool pid_found = false;
+
+			int start_pid = 0;
+			int end_pid = p-1;
+			int mid_pid = (start_pid + end_pid)/2;
+
+			int mid_start_row = (n/p)*(mid_pid) + ((mid_pid < n%p) ? mid_pid : n%p);
+			int mid_end_row = mid_start_row + (n/p) - 1 + ((mid_pid < n%p) ? 1 : 0);
+
+			while (!pid_found)
+			{
+				if (col_idx < mid_start_row)
+				{
+					end_pid = mid_pid - 1;
+					mid_pid = (start_pid + end_pid)/2;
+				}
+				else if (col_idx > mid_end_row)
+				{
+					start_pid = mid_pid + 1;
+					mid_pid = (start_pid + end_pid)/2;
+				}
+				else
+				{
+					pid_to_recv_info = mid_pid;
+					pid_found = true;
+				}
+
+				mid_start_row = (n/p)*(mid_pid) + ((mid_pid < n%p) ? mid_pid : n%p);
+				mid_end_row = mid_start_row + (n/p) - 1 + ((mid_pid < n%p) ? 1 : 0);
+			}
+
+			// Now we know which process will send this value
+			// so we have to check if we already stored its index in the "recv_instructions" map
+			// we can perform it just picking the pid's entry in the map and looking for the requested index in the associated set
+			if( (M->recv_instructions).find(pid_to_recv_info) == (M->recv_instructions).end() ) // maybe this pid isn't in the map yet
+			{
+				// Then add the pid with a associated singleton containing the index
+				(M->recv_instructions).insert({pid_to_recv_info, {col_idx}});
+			}
+			else if( (M->recv_instructions[pid_to_recv_info]).find(col_idx) == (M->recv_instructions[pid_to_recv_info]).end() ) // in the case the requested index wasn't already stored
+			{
+				// Then add this missing index in this set (we don't need to search the pid : we already have it !)
+				M->recv_instructions[pid_to_recv_info].insert(col_idx);
+			}
+
+    }
 
 		return;
 	}
@@ -163,7 +210,6 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 				end_pid = mid_pid - 1;
 				mid_pid = (start_pid + end_pid)/2;
 			}
-
 			else
 			{
 				if (row_idx > mid_end_row)
@@ -171,7 +217,6 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 					start_pid = mid_pid + 1;
 					mid_pid = (start_pid + end_pid)/2;
 				}
-
 				else
 				{
 					pid_to_send_info = mid_pid;
@@ -183,44 +228,26 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 			mid_end_row = mid_start_row + (n/p) - 1 + ((mid_pid < n%p) ? 1 : 0);
 		}
 
-		bool send_instruction_posted = false;
-
-		for (auto it1 = M->send_instructions.begin(); it1 != M->send_instructions.end(); it1++)
+		// Now we know to which pid we have to send the value
+		// so, as in the "sending part" previously, we do some verification before adding the value
+		if( (M->send_instructions).find(pid_to_send_info) == (M->send_instructions).end() ) // maybe this pid isn't in the map yet
 		{
-			if ((*it1)->pid == pid_to_send_info)
-			{
-				for (auto it2 = ((*it1)->indices).begin(); it2 != ((*it1)->indices).end(); it2++)
-				{
-					if (*it2 == col_idx)
-					{
-						send_instruction_posted = true;
-					}
-				}
-
-				if (!send_instruction_posted)
-				{
-					(*it1)->indices.push_back(col_idx);
-					send_instruction_posted = true;
-				}
-			}
+			// Then add the pid with a associated singleton containing the index
+			(M->send_instructions).insert({pid_to_send_info, {col_idx}});
+		}
+		else if( (M->send_instructions[pid_to_send_info]).find(col_idx) == (M->send_instructions[pid_to_send_info]).end() ) // in the case the requested index wasn't already stored
+		{
+			// Then add this missing index in this set (we don't need to search the pid : we already have it !)
+			M->send_instructions[pid_to_send_info].insert(col_idx);
 		}
 
-		if (!send_instruction_posted)
-		{
-			data_transfer_instruction* dti_ptr_1 = new data_transfer_instruction();
-			dti_ptr_1->pid = pid_to_send_info;
-			dti_ptr_1->indices.push_back(col_idx);
-
-			M->send_instructions.push_back(dti_ptr_1);
-			send_instruction_posted = true;
-		}
 	}
 
 	// that was easy!
 
 }
 
-void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y)
+void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, mpi_exchanges_buffers &mpi_exchg_buff)
 {
 	// compute the matrix vector product A*x and return it in y
 		// assuming x contains only x[start_row] to x[end_row]
@@ -232,7 +259,6 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
   // Time measured for the call of the function
   double smvprod_time_start = mX_timer();
 
-
   int start_row = A->start_row;
 	int end_row = A->end_row;
 
@@ -241,7 +267,15 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 
   // each process fill a send_buffer of pairs (index, x[index]) for each process it has at least one value to send
   // index is casted as a double for the send, and re-casted as an int when received
-  std::vector<double> send_buffer;
+
+  // Building the send buffer :
+  int* sizes_send_buffers = (int*) calloc(nb_proc*sizeof(int));
+  for (auto it1 = A->send_instructions.begin(); it1 != A->send_instructions.end(); it1++)
+  {
+
+  }
+
+  int* sizes_recv_buffers = (int*) calloc(nb_proc*sizeof(int));
 
 	for (auto it1 = A->send_instructions.begin(); it1 != A->send_instructions.end(); it1++)
 	{
@@ -251,8 +285,18 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
       send_buffer.push_back(x[(*it2)-start_row]);
 		}
     // Tag is arbitrary choosen
-    MPI_Send(send_buffer.data(), send_buffer.size(), MPI_DOUBLE, (*it1)->pid, 100, MPI_COMM_WORLD);
+    MPI_Isend(send_buffer.data(), send_buffer.size(), MPI_DOUBLE, (*it1)->pid, 100, MPI_COMM_WORLD, send_requests+cpt_send_requests);
+    cpt_send_requests++;
+
+    send_buffer.clear();
 	}
+
+  // Measure the size of the receive buffer for each process
+  for(auto it1 = A->missing_coordinates_and_pid.begin(); it1 != A->missing_coordinates_and_pid.end(); it1++)
+  {
+    *(sizes_recv_buffers + ((*it1)->second) ) += 1;
+  }
+
 #endif
 
 	// and everytime a processor receives an x_vec entry

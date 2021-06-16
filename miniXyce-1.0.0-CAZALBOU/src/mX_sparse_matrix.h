@@ -34,22 +34,41 @@
 // Date : July 2010
 
 #include <vector>
-#include <list>
 #include <map>
 
 namespace mX_matrix_utils
 {
+	struct mpi_exchanges_buffers
+	{
+		// This structure is intended to contain 4 buffers, used whenever a matrix-vector product occurs
+		// They are allocated once in the program, assuming the size of the matrix won't change during the execution
+		MPI_Request* send_requests; // dynamic array containing all the sending requests
+		MPI_Request* recv_requests; // dynamic array containing all the sending requests
+		std::vector<double>** array_of_send_buffers; // dynamic array with the sending buffers of each process : [adress buff_pid0, adress buff_pid1, ..., adress buff_pidn]
+		std::vector<double>** array_of_recv_buffers; // dynamic array with the receiving buffers of each process : [adress buff_pid0, adress buff_pid1, ..., adress buff_pidn]
+
+		// Constructor :
+		mpi_exchanges_buffers(int nb_proc)
+		{
+			// Allocate memory for the 4 arrays
+			send_requests = new MPI_Request[nb_proc];
+			recv_requests = new MPI_Request[nb_proc];
+			array_of_send_buffers = new std::vector<double>*[nb_proc];
+			array_of_recv_buffers = new std::vector<double>*[nb_proc];
+			// And now allocate buffers (i.e. vectors) inside the two lats arrays of buffers
+			for(int i = 0; i<nb_proc; i++)
+			{
+				array_of_send_buffers[i] = new std::vector<double>;
+				array_of_recv_buffers[i] = new std::vector<double>;
+			}
+		}
+	};
+
 	struct distributed_sparse_matrix_entry
 	{
 		int column;		// global column index
 		double value;	// value stored in the matrix
 		distributed_sparse_matrix_entry* next_in_row;	// pointer to next entry in the same row
-	};
-
-	struct data_transfer_instruction
-	{
-		std::list<int> indices;		// which elements of the vector to send
-		int pid;		// to which processor the data is to be sent
 	};
 
 	struct distributed_sparse_matrix
@@ -67,28 +86,38 @@ namespace mX_matrix_utils
 
 		int start_row;
 		int end_row;
-                int local_nnz;
+    int local_nnz;
 
-		std::vector<distributed_sparse_matrix_entry*> row_headers;
-		std::list<data_transfer_instruction*> send_instructions;
+		std::vector<distributed_sparse_matrix_entry*> row_headers; // list of first entry of each row (nullptr if the row only contains zeros)
+		std::map<int, std::set<int> > send_instructions; // map of (pid, {set of indexes to send to pid})
+		std::map<int, std::set<int> > recv_instructions; // map of (pid, {set of indexes to receive from pid})
 
-                distributed_sparse_matrix();
+		// Bounds of "diagonal block" (covering communications with calculus) :
+		/*
+		std::vector<distributed_sparse_matrix_entry*> left_limit;
+		std::vector<distributed_sparse_matrix_entry*> right_limit;
+		*/
+
+		// Overloaded constructor :
+  	distributed_sparse_matrix(int start, int end) : start_row(start), end_row(end), local_nnz(0)
+		{
+			row_headers.resize(end-start+1, nullptr);
+		}
 	};
 
 
-	void distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int row_idx, int col_idx, double val, int n, int p);
+	void distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val, int const n, int const p);
 
-	void sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y);
+	void sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, mpi_exchanges_buffers &mpi_exchg_buff);
 
 	double norm(std::vector<double> const& x);
 
 	void gmres(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts);
 
-        void destroy_matrix(distributed_sparse_matrix* A);
+  void destroy_matrix(distributed_sparse_matrix* A);
 
-        void print_vector(std::vector<double> &x);
-
-        void print_matrix(distributed_sparse_matrix &A);
+  void print_vector(std::vector<double> &x);
+  void print_matrix(distributed_sparse_matrix &A);
 }
 
 #endif

@@ -68,6 +68,9 @@ int main(int argc, char* argv[])
 
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
 	MPI_Comm_rank(MPI_COMM_WORLD, &pid);
+
+	// Initialize the structure used for exchanges whenever an matrix-vector product occurs :
+	mpi_exchanges_buffers mpi_exchg_buff(p);
 	#endif
 
 	double sim_start = mX_timer();
@@ -254,13 +257,10 @@ int main(int argc, char* argv[])
 			// so you won't have to compute it at each time step =====================
 
   tstart = mX_timer();
-	distributed_sparse_matrix* A = dae->A;
-	distributed_sparse_matrix* B = dae->B;
 
-	std::vector<distributed_sparse_matrix_entry*>::iterator it1;
 	int row_idx = start_row - 1;
 
-	for (it1 = B->row_headers.begin(); it1 != B->row_headers.end(); it1++)
+	for (auto it1 = dae->B->row_headers.begin(); it1 != dae->B->row_headers.end(); it1++)
 	{
 		row_idx++;
 		distributed_sparse_matrix_entry* curr = *it1;
@@ -270,7 +270,7 @@ int main(int argc, char* argv[])
 			int col_idx = curr->column;
 			double value = (curr->value)/t_step;
 
-			distributed_sparse_matrix_add_to(A,row_idx,col_idx,value,n,p);
+			distributed_sparse_matrix_add_to(dae->A,row_idx,col_idx,value,n,p);
 
 			curr = curr->next_in_row;
 		}
@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
 		std::vector<double> RHS;
 
 		smvprod_alone_time_start = mX_timer();
-		sparse_matrix_vector_product(B,x,RHS);
+		sparse_matrix_vector_product(dae->B,x,RHS);
 		smvprod_alone_time_end = mX_timer();
 		coroutine_smvprod_alone(smvprod_alone_time_end - smvprod_alone_time_start);
 
@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
 		}
 
 		// now solve the linear system just built using GMRES(k)
-		gmres(A,RHS,x,tol,res,k,x,iters,restarts);
+		gmres(dae->A,RHS,x,tol,res,k,x,iters,restarts);
 
     total_gmres_iters += iters;
     total_gmres_res += res;
@@ -401,8 +401,6 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	MPI_Barrier(MPI_COMM_WORLD);
-	print_matrix(*A);
 
 	// Clean up
 	mX_linear_DAE_utils::destroy( dae );
