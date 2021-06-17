@@ -35,6 +35,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 
 #ifdef HAVE_MPI
 #include <mpi.h>
@@ -42,6 +43,8 @@
 
 namespace mX_matrix_utils
 {
+
+	#ifdef HAVE_MPI
 	struct mpi_exchanges_buffers
 	{
 		// This structure is intended to contain 4 buffers, used whenever a matrix-vector product occurs
@@ -51,8 +54,10 @@ namespace mX_matrix_utils
 		std::vector<double>** array_of_send_buffers; // dynamic array with the sending buffers of each process : [adress buff_pid0, adress buff_pid1, ..., adress buff_pidn]
 		std::vector<double>** array_of_recv_buffers; // dynamic array with the receiving buffers of each process : [adress buff_pid0, adress buff_pid1, ..., adress buff_pidn]
 
+		int comm_size; // communicator size (i.e. number of processes)
+
 		// Constructor :
-		mpi_exchanges_buffers(int nb_proc)
+		mpi_exchanges_buffers(int nb_proc) : comm_size(nb_proc)
 		{
 			// Allocate memory for the 4 arrays
 			send_requests = new MPI_Request[nb_proc];
@@ -62,18 +67,29 @@ namespace mX_matrix_utils
 			// And now allocate buffers (i.e. vectors) inside the two lats arrays of buffers
 			for(int i = 0; i<nb_proc; i++)
 			{
-				array_of_send_buffers[i] = new std::vector<double>;
-				array_of_recv_buffers[i] = new std::vector<double>;
+				array_of_send_buffers[i] = new std::vector<double>(0);
+				array_of_recv_buffers[i] = new std::vector<double>(0);
 			}
 		}
 
 		// Destructor :
 		~mpi_exchanges_buffers()
 		{
-			// !!!! A ECRIRE !!!!!
+			// First, deallocate vectors inside the send and receive buffers
+			for(int i = 0; i<comm_size; i++)
+			{
+				delete array_of_send_buffers[i];
+				delete array_of_recv_buffers[i];
+			}
+			// Then, deallocate the four buffers
+			delete[] send_requests;
+			delete[] recv_requests;
+			delete[] array_of_send_buffers;
+			delete[] array_of_recv_buffers;
 		}
 
 	};
+	#endif
 
 	struct distributed_sparse_matrix_entry
 	{

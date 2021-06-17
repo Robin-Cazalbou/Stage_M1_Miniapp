@@ -45,8 +45,6 @@
 
 using namespace mX_matrix_utils;
 
-distributed_sparse_matrix::distributed_sparse_matrix() : start_row(0), end_row(0), local_nnz(0) {}
-
 void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val, int const n, int const p)
 {
 	// implements M[row_idx][col_idx] += val
@@ -251,12 +249,14 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 
 static double helper_matrix_vector_product(std::vector<double>** array_to_search, int &cpt_i, int &cpt_j)
 {
-	// [ptr vector, ptr vector, ... , ptr vector]
-	// aucun pointeur n'est null, mais potentiellement certains vecteurs ont une taille de 0
-	// La fonction doit :
-	// - vérifier si : array_to_search[cpt_i]->size() > cpt_j
-	// - si c'est le cas : retourner la valeur contenue à cet index cpt_j, et incrémenter cpt_j
-	// - si ce n'est pas le cas : incrémenter cpt_i, remettre cpt_j = 0, puis vérifier à nouveau si : array_to_search[cpt_i]->size() > cpt_j et refaire comme précédemment jusqu'à ce que cela soit le cas (do while ?)
+	while(array_to_search[cpt_i]->size() <= cpt_j)
+	{
+		cpt_j = 0;
+		cpt_i++;
+	}
+
+	cpt_j++;
+	return (*(array_to_search[cpt_i]))[cpt_j-1];
 }
 
 void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, int nb_proc)
@@ -293,10 +293,10 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
   {
 		for(auto it_value = (it_pid->second).begin(); it_value != (it_pid->second).end(); it_value++)
 		{
-			(mpi_exchg_buff.array_of_send_buffers[*it_pid])->push_back(*it_value);
+			( (mpi_exchg_buff.array_of_send_buffers)[it_pid->first])->push_back(*it_value);
 		}
 		// Send this buffer
-		MPI_Isend((mpi_exchg_buff.array_of_send_buffers[*it_pid])->data(), (mpi_exchg_buff.array_of_send_buffers[*it_pid])->size(), MPI_DOUBLE, *it_pid, 100, MPI_COMM_WORLD, mpi_exchg_buff.send_requests[*it_pid]);
+		MPI_Isend((mpi_exchg_buff.array_of_send_buffers[it_pid->first])->data(), (mpi_exchg_buff.array_of_send_buffers[it_pid->first])->size(), MPI_DOUBLE, it_pid->first, 100, MPI_COMM_WORLD, &(mpi_exchg_buff.send_requests[it_pid->first]) );
   }
 
 	// Building all receiving buffers :
@@ -304,10 +304,10 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
   {
 		for(auto it_value = (it_pid->second).begin(); it_value != (it_pid->second).end(); it_value++)
 		{
-			(mpi_exchg_buff.array_of_recv_buffers[*it_pid])->push_back(*it_value);
+			(mpi_exchg_buff.array_of_recv_buffers[it_pid->first])->push_back(*it_value);
 		}
 		// Receive this buffer
-		MPI_Irecv((mpi_exchg_buff.array_of_recv_buffers[*it_pid])->data(), (mpi_exchg_buff.array_of_recv_buffers[*it_pid])->size(), MPI_DOUBLE, *it_pid, 100, MPI_COMM_WORLD, mpi_exchg_buff.recv_requests[*it_pid]);
+		MPI_Irecv((mpi_exchg_buff.array_of_recv_buffers[it_pid->first])->data(), (mpi_exchg_buff.array_of_recv_buffers[it_pid->first])->size(), MPI_DOUBLE, it_pid->first, 100, MPI_COMM_WORLD, &(mpi_exchg_buff.recv_requests[it_pid->first]) );
   }
 
 #endif
@@ -338,7 +338,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 	// Intermediate waiting phase : we have to wait all the receptions before next computation phase
 	for(auto it_pids_to_recv = (A->recv_instructions).begin(); it_pids_to_recv != (A->recv_instructions).end(); it_pids_to_recv++)
 	{
-		MPI_Wait( &(mpi_exchg_buff.recv_requests[it_pids_to_recv.first]), MPI_STATUS_IGNORE);
+		MPI_Wait( &(mpi_exchg_buff.recv_requests[it_pids_to_recv->first]), MPI_STATUS_IGNORE);
 	}
 
 	// Finishing the remaining computations (i.e. out of the diagonal block)
@@ -355,7 +355,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 			if( (col_idx < start_row) || (col_idx > end_row) )
 			{
 				// Reach the value of x we now have to multiply :
-				x_val_to_multiply = helper_matrix_vector_product(mpi_exchg_buff->array_of_recv_buffers, cpt_i, cpt_j);
+				x_val_to_multiply = helper_matrix_vector_product(mpi_exchg_buff.array_of_recv_buffers, cpt_i, cpt_j);
 				// Do the multiplication
 				y[i-start_row] += (curr->value)*x_val_to_multiply ;
 			}
@@ -368,7 +368,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 	// we yet checked only for the receiving part
 	for(auto it_pids_to_send = (A->send_instructions).begin(); it_pids_to_send != (A->send_instructions).end(); it_pids_to_send++)
 	{
-		MPI_Wait( &(mpi_exchg_buff.send_requests[it_pids_to_send.first]), MPI_STATUS_IGNORE);
+		MPI_Wait( &(mpi_exchg_buff.send_requests[it_pids_to_send->first]), MPI_STATUS_IGNORE);
 	}
 #endif
 
@@ -626,12 +626,12 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 
 void mX_matrix_utils::destroy_matrix(distributed_sparse_matrix* A)
 {
-  if (A)
+  if(A)
   {
       // delete row_headers
       for (int j=A->start_row, cnt=0; j<=A->end_row; ++j, ++cnt)
       {
-        distributed_sparse_matrix_entry* curr = (*A).row_headers[cnt], *next = 0;
+        distributed_sparse_matrix_entry* curr = A->row_headers[cnt], *next = 0;
 
         while (curr)
         {
@@ -641,22 +641,14 @@ void mX_matrix_utils::destroy_matrix(distributed_sparse_matrix* A)
         }
       }
       A->row_headers.resize(0);
-
-      // delete send_instructions
-      while (!A->send_instructions.empty())
-      {
-        data_transfer_instruction* curr = A->send_instructions.front();
-        delete curr; curr=0;
-        A->send_instructions.pop_front();
-      }
-
-      delete A; A=0;
+      delete A;
+			A = nullptr;
   }
 }
 
 void mX_matrix_utils::print_vector(std::vector<double>& x)
 {
-  int numprocs = 1, procnum=0;
+  int numprocs = 1, procnum = 0;
 
 #ifdef HAVE_MPI
   /* Find this processor number */
@@ -686,7 +678,7 @@ void mX_matrix_utils::print_vector(std::vector<double>& x)
 
 void mX_matrix_utils::print_matrix(distributed_sparse_matrix &A)
 {
-  int numprocs = 1, procnum=0;
+  int numprocs = 1, procnum = 0;
 
 #ifdef HAVE_MPI
   /* Find this processor number */

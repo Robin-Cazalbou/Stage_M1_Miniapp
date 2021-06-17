@@ -338,7 +338,9 @@ int main(int argc, char* argv[])
 	  	*outfile << std::fixed << std::setw(20)  << iters << std::setw(20) << restarts << std::endl;
 		}
 
+		#ifdef HAVE_MPI
 		MPI_Barrier(MPI_COMM_WORLD);
+		#endif
 
     io_tend += (mX_timer() - io_tstart);
 

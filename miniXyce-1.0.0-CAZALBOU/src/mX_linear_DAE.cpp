@@ -70,11 +70,13 @@ void mX_linear_DAE_utils::destroy_RHS(mX_linear_DAE_RHS_entry* entry)
 {
   if (entry)
   {
-    // delete send_instructions
+    // delete scaled_src_list
     while (!entry->scaled_src_list.empty())
     {
       mX_scaled_source* curr = entry->scaled_src_list.front();
-      if (curr) delete curr->src; delete curr; curr=0;
+      if (curr) delete curr->src;
+      delete curr;
+      curr = nullptr;
       entry->scaled_src_list.pop_front();
     }
     delete entry; entry=0;
@@ -96,5 +98,6 @@ void mX_linear_DAE_utils::destroy(mX_linear_DAE* dae)
   }
   dae->b.resize(0);
 
-  delete dae; dae=0;
+  delete dae;
+  dae = nullptr;
 }
