@@ -68,9 +68,6 @@ int main(int argc, char* argv[])
 
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
 	MPI_Comm_rank(MPI_COMM_WORLD, &pid);
-
-	// Initialize the structure used for exchanges whenever an matrix-vector product occurs :
-	mpi_exchanges_buffers mpi_exchg_buff(p);
 	#endif
 
 	double sim_start = mX_timer();
@@ -170,7 +167,7 @@ int main(int argc, char* argv[])
 
 		std::vector<double> init_RHS = evaluate_b(t_start,dae);
 
-		gmres(dae->A,init_RHS,init_cond_guess,tol,res,k,x,iters,restarts);
+		gmres(dae->A,init_RHS,init_cond_guess,tol,res,k,x,iters,restarts, p);
 
 		doc.add("DCOP Calculation","");
 		doc.get("DCOP Calculation")->add("Init_cond_specified", false);
@@ -302,7 +299,7 @@ int main(int argc, char* argv[])
 		std::vector<double> RHS;
 
 		smvprod_alone_time_start = mX_timer();
-		sparse_matrix_vector_product(dae->B,x,RHS);
+		sparse_matrix_vector_product(dae->B,x,RHS, p);
 		smvprod_alone_time_end = mX_timer();
 		coroutine_smvprod_alone(smvprod_alone_time_end - smvprod_alone_time_start);
 
@@ -313,7 +310,7 @@ int main(int argc, char* argv[])
 		}
 
 		// now solve the linear system just built using GMRES(k)
-		gmres(dae->A,RHS,x,tol,res,k,x,iters,restarts);
+		gmres(dae->A,RHS,x,tol,res,k,x,iters,restarts, p);
 
     total_gmres_iters += iters;
     total_gmres_res += res;

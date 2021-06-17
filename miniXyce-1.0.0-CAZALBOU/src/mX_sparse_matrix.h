@@ -36,6 +36,10 @@
 #include <vector>
 #include <map>
 
+#ifdef HAVE_MPI
+#include <mpi.h>
+#endif
+
 namespace mX_matrix_utils
 {
 	struct mpi_exchanges_buffers
@@ -62,6 +66,13 @@ namespace mX_matrix_utils
 				array_of_recv_buffers[i] = new std::vector<double>;
 			}
 		}
+
+		// Destructor :
+		~mpi_exchanges_buffers()
+		{
+			// !!!! A ECRIRE !!!!!
+		}
+
 	};
 
 	struct distributed_sparse_matrix_entry
@@ -108,11 +119,11 @@ namespace mX_matrix_utils
 
 	void distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val, int const n, int const p);
 
-	void sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, mpi_exchanges_buffers &mpi_exchg_buff);
+	void sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, int nb_proc);
 
 	double norm(std::vector<double> const& x);
 
-	void gmres(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts);
+	void gmres(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts, int const& nb_proc);
 
   void destroy_matrix(distributed_sparse_matrix* A);
 

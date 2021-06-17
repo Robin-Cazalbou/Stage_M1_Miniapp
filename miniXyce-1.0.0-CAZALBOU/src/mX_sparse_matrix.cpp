@@ -41,6 +41,7 @@
 
 #include "mX_timer.h"
 #include "coroutines.h"
+#include <cassert>
 
 using namespace mX_matrix_utils;
 
@@ -247,7 +248,18 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 
 }
 
-void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, mpi_exchanges_buffers &mpi_exchg_buff)
+
+static double helper_matrix_vector_product(std::vector<double>** array_to_search, int &cpt_i, int &cpt_j)
+{
+	// [ptr vector, ptr vector, ... , ptr vector]
+	// aucun pointeur n'est null, mais potentiellement certains vecteurs ont une taille de 0
+	// La fonction doit :
+	// - vérifier si : array_to_search[cpt_i]->size() > cpt_j
+	// - si c'est le cas : retourner la valeur contenue à cet index cpt_j, et incrémenter cpt_j
+	// - si ce n'est pas le cas : incrémenter cpt_i, remettre cpt_j = 0, puis vérifier à nouveau si : array_to_search[cpt_i]->size() > cpt_j et refaire comme précédemment jusqu'à ce que cela soit le cas (do while ?)
+}
+
+void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, int nb_proc)
 {
 	// compute the matrix vector product A*x and return it in y
 		// assuming x contains only x[start_row] to x[end_row]
@@ -259,136 +271,106 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
   // Time measured for the call of the function
   double smvprod_time_start = mX_timer();
 
-  int start_row = A->start_row;
+	int start_row = A->start_row;
 	int end_row = A->end_row;
+
+	// Assert y is an empty vector
+	assert( y.size() == 0 );
+	// Assert the number of rows in A is equal to the size of x :
+	assert( end_row-start_row+1 == x.size() );
+
 
 #ifdef HAVE_MPI
 	// ok, now's the time to follow the send instructions that each pid has been maintaining
+	// each process fill a send_buffer with all expected values, for each other process it had in its send_instructions
+	// the receiver knows the indexes of all those values, so the message doesn't have to contain it
 
-  // each process fill a send_buffer of pairs (index, x[index]) for each process it has at least one value to send
-  // index is casted as a double for the send, and re-casted as an int when received
+	// Structure for MPI exchanges and buffers :
+	mpi_exchanges_buffers mpi_exchg_buff(nb_proc);
 
-  // Building the send buffer :
-  int* sizes_send_buffers = (int*) calloc(nb_proc*sizeof(int));
-  for (auto it1 = A->send_instructions.begin(); it1 != A->send_instructions.end(); it1++)
+  // Building all sending buffers :
+  for(auto it_pid = A->send_instructions.begin(); it_pid != A->send_instructions.end(); it_pid++)
   {
-
+		for(auto it_value = (it_pid->second).begin(); it_value != (it_pid->second).end(); it_value++)
+		{
+			(mpi_exchg_buff.array_of_send_buffers[*it_pid])->push_back(*it_value);
+		}
+		// Send this buffer
+		MPI_Isend((mpi_exchg_buff.array_of_send_buffers[*it_pid])->data(), (mpi_exchg_buff.array_of_send_buffers[*it_pid])->size(), MPI_DOUBLE, *it_pid, 100, MPI_COMM_WORLD, mpi_exchg_buff.send_requests[*it_pid]);
   }
 
-  int* sizes_recv_buffers = (int*) calloc(nb_proc*sizeof(int));
-
-	for (auto it1 = A->send_instructions.begin(); it1 != A->send_instructions.end(); it1++)
-	{
-		for (auto it2 = (*it1)->indices.begin(); it2 != (*it1)->indices.end(); it2++)
-		{
-      send_buffer.push_back((double)*it2);
-      send_buffer.push_back(x[(*it2)-start_row]);
-		}
-    // Tag is arbitrary choosen
-    MPI_Isend(send_buffer.data(), send_buffer.size(), MPI_DOUBLE, (*it1)->pid, 100, MPI_COMM_WORLD, send_requests+cpt_send_requests);
-    cpt_send_requests++;
-
-    send_buffer.clear();
-	}
-
-  // Measure the size of the receive buffer for each process
-  for(auto it1 = A->missing_coordinates_and_pid.begin(); it1 != A->missing_coordinates_and_pid.end(); it1++)
+	// Building all receiving buffers :
+	for(auto it_pid = A->recv_instructions.begin(); it_pid != A->recv_instructions.end(); it_pid++)
   {
-    *(sizes_recv_buffers + ((*it1)->second) ) += 1;
+		for(auto it_value = (it_pid->second).begin(); it_value != (it_pid->second).end(); it_value++)
+		{
+			(mpi_exchg_buff.array_of_recv_buffers[*it_pid])->push_back(*it_value);
+		}
+		// Receive this buffer
+		MPI_Irecv((mpi_exchg_buff.array_of_recv_buffers[*it_pid])->data(), (mpi_exchg_buff.array_of_recv_buffers[*it_pid])->size(), MPI_DOUBLE, *it_pid, 100, MPI_COMM_WORLD, mpi_exchg_buff.recv_requests[*it_pid]);
   }
 
 #endif
 
-	// and everytime a processor receives an x_vec entry
-		// it stores the entry in a temporary map
 
-	std::map<int,double> x_vec_entries;
-	std::map<int,double>::iterator it3;
+	// Resizing y (as it is asserted to be empty)
+	y.resize(end_row-start_row+1, 0.0);
 
-	for (int i = start_row; i <= end_row; i++)
+	// "Diagonal computing" phase (it exactly matches to the sequential computation) :
+	for(int i = start_row; i <= end_row; i++)
 	{
-		// compute the mat_vec product for the i'th row
-
-		if (y.size() > i - start_row)
-		{
-			y[i-start_row] = (double)(0);
-		}
-		else
-		{
-			y.push_back((double)(0));
-		}
-
 		distributed_sparse_matrix_entry* curr = A->row_headers[i-start_row];
-
 		while(curr)
 		{
 			int col_idx = curr->column;
-
-			if ((col_idx >= start_row) && (col_idx <= end_row))
+			// In the diagonal block :
+			if( (col_idx >= start_row) && (col_idx <= end_row) )
 			{
-				// aha, this processor has the correct x_vec entry locally
-
 				y[i-start_row] += (curr->value)*x[col_idx-start_row];
 			}
-#ifdef HAVE_MPI
-			else
-			{
-				// this processor does not have the x_vec entry locally
-					// but some other processor might have sent it to this guy
-						// in which case the entry would have been stored in the local x_vec_entries map
-						// so check if the entry is in the map
-
-				it3 = x_vec_entries.find(col_idx);
-
-				if (it3 != x_vec_entries.end())
-				{
-					y[i-start_row] += (double)(it3->second)*(curr->value);
-				}
-
-				else
-				{
-					// no, the entry is not in the map either
-						// so this processor waits until someone sends the entry
-						// and once it gets the entry, it does two things
-							// puts the entry in the map for future reference
-							// continues with the matrix vector multiplication
-
-          // When a process receive a message, it's not sure it contains the expected value (the message can come from the wrong sender)
-          // so it adds all the values in the map, then checks if the expected value is there
-          // if not, it prepares itself to receive another message untill the expected value is received
-          MPI_Status status;
-          int size_msg;
-
-          do
-          {
-            MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status); // because the size of all messages are unknown
-            MPI_Get_count(&status, MPI_DOUBLE, &size_msg);
-            double* recv_buffer = (double*) malloc(size_msg*sizeof(double));
-            MPI_Recv(recv_buffer, size_msg, MPI_DOUBLE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-            // add the received entries to the map
-  					for(int j = 0; j<size_msg; j+=2)
-            {
-              x_vec_entries[(int)recv_buffer[j]] = recv_buffer[j+1];
-            }
-            free(recv_buffer);
-
-            // look for the expected value in the map
-            it3 = x_vec_entries.find(col_idx);
-
-          } while( it3 == x_vec_entries.end() ); // did he receive the expected value ?
-
-
-          // continue the multiplication for the index that wasn't known before the reception
-          y[i-start_row] += (double)(it3->second)*(curr->value);
-
-				}
-			}
-#endif
+			// Continue with the next entry in the matrix row :
 			curr = curr->next_in_row;
-		} // end while
-	} // end for
+		}
+	}
 
+
+#ifdef HAVE_MPI
+	// Intermediate waiting phase : we have to wait all the receptions before next computation phase
+	for(auto it_pids_to_recv = (A->recv_instructions).begin(); it_pids_to_recv != (A->recv_instructions).end(); it_pids_to_recv++)
+	{
+		MPI_Wait( &(mpi_exchg_buff.recv_requests[it_pids_to_recv.first]), MPI_STATUS_IGNORE);
+	}
+
+	// Finishing the remaining computations (i.e. out of the diagonal block)
+	double x_val_to_multiply;
+	int cpt_i, cpt_j;
+	for(int i = start_row; i <= end_row; i++)
+	{
+		cpt_i = 0, cpt_j = 0;
+		distributed_sparse_matrix_entry* curr = A->row_headers[i-start_row];
+		while(curr)
+		{
+			int col_idx = curr->column;
+			// Out of the diagonal block :
+			if( (col_idx < start_row) || (col_idx > end_row) )
+			{
+				// Reach the value of x we now have to multiply :
+				x_val_to_multiply = helper_matrix_vector_product(mpi_exchg_buff->array_of_recv_buffers, cpt_i, cpt_j);
+				// Do the multiplication
+				y[i-start_row] += (curr->value)*x_val_to_multiply ;
+			}
+			// Continue with the next entry in the matrix row :
+			curr = curr->next_in_row;
+		}
+	}
+
+	// Final waiting phase : we can't leave this function scope without asserting all the messages have been sent
+	// we yet checked only for the receiving part
+	for(auto it_pids_to_send = (A->send_instructions).begin(); it_pids_to_send != (A->send_instructions).end(); it_pids_to_send++)
+	{
+		MPI_Wait( &(mpi_exchg_buff.send_requests[it_pids_to_send.first]), MPI_STATUS_IGNORE);
+	}
+#endif
 
   // End of time measuring : time spent in the function is added to the previous time spent using the coroutine_smvprod
   double smvprod_time_end = mX_timer();
@@ -425,7 +407,7 @@ double mX_matrix_utils::norm(std::vector<double> const& x)
 	return std::sqrt(global_norm);
 }
 
-void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts)
+void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts, int const& nb_proc)
 {
 	// here's the star of the show, the guest of honor, none other than Mr.GMRES
 
@@ -443,7 +425,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 	x = x0;
 
 	std::vector<double> temp1;
-	sparse_matrix_vector_product(A,x,temp1);
+	sparse_matrix_vector_product(A,x,temp1, nb_proc);
 
 	for (int i = 0; i < temp1.size(); i++)
 	{
@@ -463,7 +445,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 
 		std::vector<double> temp1;
 		std::vector< std::vector<double> > V;
-		sparse_matrix_vector_product(A,x,temp1);
+		sparse_matrix_vector_product(A,x,temp1, nb_proc);
 
 		for (int i = start_row; i <= end_row; i++)
 		{
@@ -516,7 +498,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 			{
 				temp1.push_back(V[i-start_row][iters-1]);
 			}
-			sparse_matrix_vector_product(A,temp1,temp2);
+			sparse_matrix_vector_product(A,temp1,temp2, nb_proc);
 
 			// Right, Mr.GMRES now has the matrix vector product
 				// now he will orthogonalize this vector with the previous ones
