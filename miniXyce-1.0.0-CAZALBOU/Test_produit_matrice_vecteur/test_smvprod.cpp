@@ -25,14 +25,14 @@ int main(int argc, char **argv)
 	end_row = start_row + (n/nb_proc) - 1 + ((rank < n%nb_proc) ? 1 : 0);
 
   distributed_sparse_matrix* A = new distributed_sparse_matrix(start_row, end_row);
-  distributed_sparse_matrix_add_to(A, 0, 0, 1.5, n, nb_proc);
+  distributed_sparse_matrix_add_to(A, 0, 0, 1, n, nb_proc);
   distributed_sparse_matrix_add_to(A, 0, 1, -1, n, nb_proc);
-  distributed_sparse_matrix_add_to(A, 0, 2, -0.5, n, nb_proc);
   distributed_sparse_matrix_add_to(A, 0, 3, -1, n, nb_proc);
   distributed_sparse_matrix_add_to(A, 1, 0, -1, n, nb_proc);
-  distributed_sparse_matrix_add_to(A, 1, 1, 1.2, n, nb_proc);
-  distributed_sparse_matrix_add_to(A, 2, 0, -0.5, n, nb_proc);
-  distributed_sparse_matrix_add_to(A, 2, 1, 0.75, n, nb_proc);
+  distributed_sparse_matrix_add_to(A, 1, 1, 2, n, nb_proc);
+  distributed_sparse_matrix_add_to(A, 1, 2, -1, n, nb_proc);
+  distributed_sparse_matrix_add_to(A, 2, 1, -1, n, nb_proc);
+  distributed_sparse_matrix_add_to(A, 2, 2, 1, n, nb_proc);
   distributed_sparse_matrix_add_to(A, 3, 0, 1, n, nb_proc);
 
   //print_matrix(*A);
@@ -44,6 +44,10 @@ int main(int argc, char **argv)
   for(int i = 0; i<x.size(); i++)
   {
     x[i] = 0;
+  }
+  if(rank == nb_proc - 1)
+  {
+    x[x.size()-1] = 1;
   }
   //print_vector(x);
 

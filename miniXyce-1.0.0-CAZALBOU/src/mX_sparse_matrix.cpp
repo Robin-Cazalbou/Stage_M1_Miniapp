@@ -38,6 +38,7 @@
 #include <map>
 #include <cmath>
 #include <iostream>
+#include <algorithm>
 
 //#include "mX_timer.h"
 //#include "coroutines.h"
@@ -247,16 +248,11 @@ void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix
 }
 
 
-static double helper_matrix_vector_product(std::vector<double>** array_to_search, int &cpt_i, int &cpt_j)
+static double helper_matrix_vector_product(std::vector<int> const& indexes, std::vector<double> const& values, int const& col_idx)
 {
-	while(array_to_search[cpt_i]->size() <= cpt_j)
-	{
-		cpt_j = 0;
-		cpt_i++;
-	}
-
-	cpt_j++;
-	return (*(array_to_search[cpt_i]))[cpt_j-1];
+	auto it = std::find(indexes.begin(), indexes.end(), col_idx);
+	int searched_index = it - indexes.begin();
+	return values[searched_index];
 }
 
 void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, int nb_proc)
@@ -304,7 +300,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
   {
 		for(auto it_value = (it_pid->second).begin(); it_value != (it_pid->second).end(); it_value++)
 		{
-			(mpi_exchg_buff.array_of_recv_buffers[it_pid->first])->push_back(*it_value);
+			(mpi_exchg_buff.array_of_recv_buffers[it_pid->first])->push_back(0.0);
 		}
 		// Receive this buffer
 		MPI_Irecv((mpi_exchg_buff.array_of_recv_buffers[it_pid->first])->data(), (mpi_exchg_buff.array_of_recv_buffers[it_pid->first])->size(), MPI_DOUBLE, it_pid->first, 100, MPI_COMM_WORLD, &(mpi_exchg_buff.recv_requests[it_pid->first]) );
@@ -342,11 +338,30 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 	}
 
 	// Finishing the remaining computations (i.e. out of the diagonal block)
+	// First, we need to linearize the list of missing values of global x
+	std::vector<double> all_missing_values;
+	for(int i = 0; i<nb_proc; i++)
+	{
+		for(auto v : *(mpi_exchg_buff.array_of_recv_buffers[i]) )
+		{
+			all_missing_values.push_back(v);
+		}
+	}
+	// Second, we need to linearize the list of missing global indexes of x too
+	std::vector<int> all_missing_indexes;
+	for(auto process_page : A->recv_instructions)
+	{
+		for(auto idx : process_page.second)
+		{
+			all_missing_indexes.push_back(idx);
+		}
+	}
+	// Those two vectors must have the same size
+	assert( all_missing_indexes.size() == all_missing_values.size() );
+	// And now we can finish all those multiplications using the correspondance between all_missing_values and all_missing_indexes
 	double x_val_to_multiply;
-	int cpt_i, cpt_j;
 	for(int i = start_row; i <= end_row; i++)
 	{
-		cpt_i = 0, cpt_j = 0;
 		distributed_sparse_matrix_entry* curr = A->row_headers[i-start_row];
 		while(curr)
 		{
@@ -355,7 +370,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 			if( (col_idx < start_row) || (col_idx > end_row) )
 			{
 				// Reach the value of x we now have to multiply :
-				x_val_to_multiply = helper_matrix_vector_product(mpi_exchg_buff.array_of_recv_buffers, cpt_i, cpt_j);
+				x_val_to_multiply = helper_matrix_vector_product(all_missing_indexes, all_missing_values, col_idx);
 				// Do the multiplication
 				y[i-start_row] += (curr->value)*x_val_to_multiply ;
 			}
@@ -370,7 +385,6 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 	{
 		MPI_Wait( &(mpi_exchg_buff.send_requests[it_pids_to_send->first]), MPI_STATUS_IGNORE);
 	}
-
 
 #endif
 
@@ -503,6 +517,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 			}
 			sparse_matrix_vector_product(A,temp1,temp2, nb_proc);
 
+
 			// Right, Mr.GMRES now has the matrix vector product
 				// now he will orthogonalize this vector with the previous ones
 					// with some help from Messrs Gram and Schmidt
@@ -538,6 +553,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 				temp2[i-start_row] /= new_col_H.back();
 				V[i-start_row].push_back(temp2[i-start_row]);
 			}
+
 
 			// Right, Mr.GMRES has successfully updated V
 				// on the side, he has also been computing the new column of the Hessenberg matrix
