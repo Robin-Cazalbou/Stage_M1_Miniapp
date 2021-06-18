@@ -39,8 +39,8 @@
 #include <cmath>
 #include <iostream>
 
-#include "mX_timer.h"
-#include "coroutines.h"
+//#include "mX_timer.h"
+//#include "coroutines.h"
 #include <cassert>
 
 using namespace mX_matrix_utils;
@@ -269,7 +269,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 
 
   // Time measured for the call of the function
-  double smvprod_time_start = mX_timer();
+  // ******** double smvprod_time_start = mX_timer(); *********
 
 	int start_row = A->start_row;
 	int end_row = A->end_row;
@@ -293,7 +293,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
   {
 		for(auto it_value = (it_pid->second).begin(); it_value != (it_pid->second).end(); it_value++)
 		{
-			( (mpi_exchg_buff.array_of_send_buffers)[it_pid->first])->push_back(*it_value);
+			( (mpi_exchg_buff.array_of_send_buffers)[it_pid->first])->push_back(x[*it_value - start_row]);
 		}
 		// Send this buffer
 		MPI_Isend((mpi_exchg_buff.array_of_send_buffers[it_pid->first])->data(), (mpi_exchg_buff.array_of_send_buffers[it_pid->first])->size(), MPI_DOUBLE, it_pid->first, 100, MPI_COMM_WORLD, &(mpi_exchg_buff.send_requests[it_pid->first]) );
@@ -370,11 +370,13 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 	{
 		MPI_Wait( &(mpi_exchg_buff.send_requests[it_pids_to_send->first]), MPI_STATUS_IGNORE);
 	}
+
+
 #endif
 
   // End of time measuring : time spent in the function is added to the previous time spent using the coroutine_smvprod
-  double smvprod_time_end = mX_timer();
-  coroutine_smvprod(smvprod_time_end - smvprod_time_start);
+  // ************* double smvprod_time_end = mX_timer(); *******************
+  // ************* coroutine_smvprod(smvprod_time_end - smvprod_time_start); **************
 
 }
 
@@ -383,7 +385,7 @@ double mX_matrix_utils::norm(std::vector<double> const& x)
 	// at last, a function that's relatively simple to implement in parallel
 
 
-  double norm_time_start = mX_timer();
+  // ************** double norm_time_start = mX_timer(); ******************
 
 
 	double global_norm;
@@ -400,8 +402,8 @@ double mX_matrix_utils::norm(std::vector<double> const& x)
 #endif
 
 
-  double norm_time_end = mX_timer();
-  coroutine_norm(norm_time_end - norm_time_start);
+  // ************** double norm_time_end = mX_timer(); ****************
+  // ************** coroutine_norm(norm_time_end - norm_time_start); **********
 
 
 	return std::sqrt(global_norm);
@@ -416,7 +418,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 		// otherwise he settles down to work in mysterious ways his wonders to perform
 
 
-  double gmres_time_start = mX_timer();
+  // *********** double gmres_time_start = mX_timer(); **************
 
 
 	int start_row = A->start_row;
@@ -433,6 +435,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 	}
 
 	err = norm(temp1);
+
   	restarts = -1;
 	iters = 0;
 
@@ -619,8 +622,8 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 	}
 
 
-  double gmres_time_end = mX_timer();
-  coroutine_gmres(gmres_time_end -gmres_time_start);
+  // *********** double gmres_time_end = mX_timer(); *****************
+  // *********** coroutine_gmres(gmres_time_end -gmres_time_start); *********
 
 }
 

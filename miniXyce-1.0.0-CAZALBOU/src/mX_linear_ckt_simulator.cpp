@@ -286,6 +286,7 @@ int main(int argc, char* argv[])
 
 	double smvprod_alone_time_start, smvprod_alone_time_end;
 
+
 	while (t < t_stop)
 	{
     trans_steps++;
@@ -337,10 +338,6 @@ int main(int argc, char* argv[])
 
 	  	*outfile << std::fixed << std::setw(20)  << iters << std::setw(20) << restarts << std::endl;
 		}
-
-		#ifdef HAVE_MPI
-		MPI_Barrier(MPI_COMM_WORLD);
-		#endif
 
     io_tend += (mX_timer() - io_tstart);
 
