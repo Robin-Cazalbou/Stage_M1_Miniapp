@@ -617,7 +617,7 @@ Il faudrait alors modifier la structure de la matrice de sorte à ce que chaque 
 
 
 
-\chapter{Deuxième optimisation MPI}
+\chapter{Deuxième optimisation MPI et utilisation de Scalasca}
 
 Dans le chapitre précédent, nous avons vu qu'une utilisation réduite des appels MPI avait permis de réduire drastiquement le temps d'exécution du programme pour un nombre de processus MPI supérieur ou égal à 2. Cependant, le temps restait toujours plus long que celui en séquentiel, ce qui indiquait que les communications restaient trop lourdes par rapport au temps gagné sur les calculs.
 
@@ -628,19 +628,42 @@ Il reste ainsi une possibilité non exploitée : celle des communications non-bl
 
 \section{Nouvelle écriture de la fonction du produit matrice-vecteur}
 
-Afin de couvrir au maximum les communications MPI par du calcul ou par d'autres communications, la fonction \textit{sparse\_matrix\_vector\_product} se décomposerait ainsi en plusieurs phases :\medskip
+La nouvelle écriture de la fonction \textit{sparse\_matrix\_vector\_product} que je propose ce décompose de la façon suivante :\medskip
 \begin{itemize}
-\item \textbf{\underline{Phase d'envois non-bloquants :}} chaque processus commence par initier tous ces envois en non-bloquants (ce qui couvre déjà une partie d'entre eux par d'autre envois initiés). Pour ce faire, un tableau de requêtes MPI est créé en début d'appel de fonction, ainsi que des buffers d'envoi pour chaque processus destinataire. Il est donc nécessaire de parcourir la structure \textit{send\_instructions} déjà présente, afin de compter le nombre de valeurs à envoyer par processus : cette opération étant uniquement dépendante de la matrice, il serait judicieux de créer une fonction à part, appelée uniquement lorsque la matrice est modifiée, pour mettre à jour ces données.
-\item \textbf{\underline{Phase de réceptions non-bloquantes :}} de même, toutes les réceptions non-bloquantes sont initiées, en utilisant un tableau de requêtes en début de fonction. Le problème est alors de savoir : de quels processus chacun doit-il attendre des valeurs ? Doit-il seulement en attendre ? Et si oui, combien ?
+\item \textbf{\underline{Phase d'envois non-bloquants :}} chaque processus commence par effectuer tous ses envois avec MPI\_Isend. \'Etant donné que cette fonction nécessite à la fois un buffer d'envoi (qui ne doit pas être modifié pendant toute la durée de l'envoi) ainsi qu'un requête MPI de type MPI\_Request (elle aussi devant être inchangée), une structure (de type nommé \textit{mpi\_exchanges \_buffers}) est créée en début d'appel de la fonction de produit matrice-vecteur, contenant un tableau (alloué dynamiquement) de requêtes (une pour chaque processus destinataire) ainsi qu'un buffer (lui aussi alloué dynamiquement). Nous parcourons ainsi une liste déjà présente et nommée \textit{send\_instructions} afin de savoir à qui envoyer un message et quelle valeur devra contenir ce message.
 
-Là encore, ces informations peuvent être sauvegardées avant la multiplication matrice-vecteur car elles ne dépendent que de la forme de la matrice.
-\item \textbf{\underline{Phase de "calcul diagonal" :}} chaque processus possédant les lignes du vecteur correspondantes aux lignes de sa partie de matrice, certaines multiplications peuvent être faites sans avoir besoin de communications. Il est alors nécessaire que les coefficients de la matrice ne s'éloignent "pas trop" de la diagonale (en formant un bloc carré). Il est alors envisageable de commencer certaines multiplications en attendant la fin des envois/réceptions.
-\item \textbf{\underline{Phase d'attente intermédiaire :}} si malgré toute cette couverture de communications, certaines réceptions ne sont pas encore complètes, le processus devra attendre avec MPI\_Waitall que toutes les requêtes de réceptions soient complétées.
-\item \textbf{\underline{Phase de fin des calculs :}} les calculs éloignés de la diagonale peuvent maintenant être réalisés avec les valeurs du vecteur qui ont été reçues. La multiplication matrice-vecteur est alors terminée localement.
-\item \textbf{\underline{Phase d'attente finale :}} cependant, avant de sortie de la fonction, nous n'avons aucune assurance que tous les envois soient terminés. Il nous faut nous assurer, avec MPI\_Waitall sur les requêtes d'envois cette fois ci, que tous les processus ont eu le temps de copier les valeurs du vecteurs dont ils avaient besoin. Les allocations dynamiques peuvent ensuite être désallouées.
+Cette liste n'étant pas pratique à utiliser, je l'ai transformée en std::map (de la STL C++) : cette map est vue alors comme un dictionnaire, dont chaque clé représente une "page" associée à un processus. Sur chaque page se trouvent un ensemble (std::set) qui contient tous les indices globaux du vecteur $x$ de la multiplication $Ax$. Afin que la construction de la matrice $A$ prenne en compte ces modifications, il a été nécessaire de changer aussi la fonction \textit{distributed\_sparse\_matrix\_add\_to}, qui construit la matrice du système composante par composante.\medskip
+
+\item \textbf{\underline{Phase de réceptions non-bloquantes :}} de même, toutes les réceptions non-bloquantes sont initiées, toujours avec la structure \textit{mpi\_exchanges \_buffers} créée. Pour remplir le buffer et connaître la taille du message, dans la même lignée que les instructions d'envois, j'ai conçu une seconde std::map contenant les instructions de réceptions. De façon symétrique, elle est remplie lors de la construction de la matrice, en même temps que les instructions d'envoi, et stockée à l'intérieur de la matrice.
+
+\item \textbf{\underline{Phase de "calcul diagonal" :}} un début de multiplication est possible avant même d'avoir reçu toutes les valeurs manquantes. En effet, dans les blocs carrés diagonaux de la matrice, aucun "croisement" entre processus n'est nécessaire. Chaque processus débute ainsi quelques multiplications avec ses valeurs locales du vecteur $x$.\medskip
+
+\item \textbf{\underline{Phase d'attente intermédiaire :}} malgré toute cette couverture de communications, certains envois ou certaines réceptions ne sont peut-être pas encore complètes. Il faut alors s'assurer que le buffer de réception est bien rempli avant de l'exploiter. Pour cela, nous faisons appel à MPI\_Wait sur chacune des requêtes dont le processus sait qu'il doit recevoir au moins une valeur (rappelons que cette information est stockée localement dans la map des instructions de réception).\medskip
+
+\item \textbf{\underline{Phase de fin des calculs :}} le reste des calculs peut maintenant se faire. Mais avant cela, une phase de linéarisation des buffers est nécessaire : d'une part, nous avons plusieurs buffers de réceptions qui contiennent les valeurs de $x$ et qu'il faut changer en un seul buffer pour un parcours plus simplifié. D'autre part, il nous faut, pour chacune de ces valeurs, connaître l'indice global de $x$ auquel elle est rattachée. Nous linéarisons ainsi la liste des index contenue dans les "pages" de la map des instructions de réception.
+
+Une petite fonction d'aide a été conçue pour récupérer la bonne valeur de $x$ associée à l'indice demandé par le processus à un instant de la multiplication. Elle n'est pas nécessaire mais aide autant à la lisibilité qu'à l'écriture du code.\medskip
+
+\item \textbf{\underline{Phase d'attente finale :}} enfin, avant que la fonction ne quitte le bloc de portée et ne détruise ses buffers d'envois et de requêtes, il nous faut nous assurer que tous les envois ont effectivement été complétés. Pour cela, nous faisons de nouveau des MPI\_Wait sur chaque requête d'envoi, nous assurant ainsi que les copies de données ont été faites dans le buffer standard de MPI.
 \end{itemize}
 
-% parler de créer aussi une fonction pour initialiser la matrice, autrement que tout en bloc dans la fonction de parsing du netlist
+\'Evidemment, l'écriture de cette fonction ne s'est pas faite d'un seul tenant et plusieurs bugs ont vus le jour. Pour éviter la lourdeur de miniXyce, j'ai conçu en parallèle un tout petit code de test, créant une matrice et effectuant un simple produit matrice-vecteur. Cela m'a permis, après avoir constaté des erreurs sur les circuits de test 1 à 5, de rectifier les problèmes d'écriture du code.
+
+Précisons par ailleurs que pour des soucis de maintenabilité et de lisibilité, j'ai entrepris de rendre l'initialisation et la destruction des matrices plus simple par l'intermédiaire des constructeurs et destructeurs du C++. Lors des allocations dynamiques ou à la fin des blocs de portée, beaucoup d'allocations/désallocations sont cachées par les appels aux constructeurs/destructeurs. Nous nous rapprochons du principe orientée-objet (très élégant) disponible en C++.
+
+
+\section{Analyse de code avec Scalasca}
+
+Les résultats de cette optimisation sur le temps d'exécution ont été très décevant vis-à-vis des efforts fournis : aucune accélération significative n'a été relevée et le code ne passait toujours pas à l'échelle (le temps à 2 processus était toujours plus long d'au moins 25\% que le cas séquentiel).\bigskip
+
+Ne sachant expliquer l'origine de cette mauvaise scalabilité forte, j'ai décidé d'installer un logiciel de tracing des applications parallèles pour avoir un historique des événements. Le choix est assez vaste : Vampir, Tau, Scalasca, MALP, Score-P, Marmot, ... L'outil Vampir n'étant pas disponible après la version 5.14.4 gratuitement ou sans inscription \cite{vampir}, son "successeur" est considéré comme étant Score-P \cite{score-p}, une infrastructure de mesure, conçue de façon communautaire, hautement scalable et simple à utiliser pour profiler et tracer une application HPC. En lui-même, Score-P est complet, mais demande un investissement dans sa maîtrise.\medskip
+
+Ainsi, je me suis tourné vers l'outil \textbf{Scalasca} : il joue à la fois le rôle de wrapper
+
+% ajouter la référence vers le site de Scalasca
+% expliquer le fonctionnement de Scalasca, de Cube et l'interaction avec Score-P et la façon d'installer tout ça
+% mettre le schéma de scoreP avec les applications qui l'utilisent
+% expliquer comment on utilise Scalasca : instrumentation (+ l'instrumentation "user" que j'ai du ajouter car il ne prenait pas en compte toutes les fonctions), analyse, examination, filtres et trace, ainsi que l'affichage sur Cube (faire des captures)
 
 
 

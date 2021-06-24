@@ -40,9 +40,12 @@
 #include <iostream>
 #include <algorithm>
 
-//#include "mX_timer.h"
-//#include "coroutines.h"
+#include "mX_timer.h"
+#include "coroutines.h"
 #include <cassert>
+
+// For user-instrumentation with Score-P
+#include <scorep/SCOREP_User.h>
 
 using namespace mX_matrix_utils;
 
@@ -264,8 +267,11 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 		// y[0] to y[end_row-start_row] will contain the correct entries of (Ax)[start_row] to (Ax)[end_row]
 
 
+	// User-instrumentation with Score-P :
+	SCOREP_USER_FUNC_BEGIN();
+
   // Time measured for the call of the function
-  // ******** double smvprod_time_start = mX_timer(); *********
+  double smvprod_time_start = mX_timer();
 
 	int start_row = A->start_row;
 	int end_row = A->end_row;
@@ -389,8 +395,11 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 #endif
 
   // End of time measuring : time spent in the function is added to the previous time spent using the coroutine_smvprod
-  // ************* double smvprod_time_end = mX_timer(); *******************
-  // ************* coroutine_smvprod(smvprod_time_end - smvprod_time_start); **************
+  double smvprod_time_end = mX_timer();
+  coroutine_smvprod(smvprod_time_end - smvprod_time_start);
+
+
+	SCOREP_USER_FUNC_END();
 
 }
 
@@ -398,8 +407,9 @@ double mX_matrix_utils::norm(std::vector<double> const& x)
 {
 	// at last, a function that's relatively simple to implement in parallel
 
+	SCOREP_USER_FUNC_BEGIN();
 
-  // ************** double norm_time_start = mX_timer(); ******************
+  double norm_time_start = mX_timer();
 
 
 	double global_norm;
@@ -416,9 +426,10 @@ double mX_matrix_utils::norm(std::vector<double> const& x)
 #endif
 
 
-  // ************** double norm_time_end = mX_timer(); ****************
-  // ************** coroutine_norm(norm_time_end - norm_time_start); **********
+  double norm_time_end = mX_timer();
+  coroutine_norm(norm_time_end - norm_time_start);
 
+	SCOREP_USER_FUNC_END();
 
 	return std::sqrt(global_norm);
 }
@@ -432,7 +443,9 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 		// otherwise he settles down to work in mysterious ways his wonders to perform
 
 
-  // *********** double gmres_time_start = mX_timer(); **************
+	SCOREP_USER_FUNC_BEGIN();
+
+  double gmres_time_start = mX_timer();
 
 
 	int start_row = A->start_row;
@@ -638,8 +651,10 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 	}
 
 
-  // *********** double gmres_time_end = mX_timer(); *****************
-  // *********** coroutine_gmres(gmres_time_end -gmres_time_start); *********
+  double gmres_time_end = mX_timer();
+  coroutine_gmres(gmres_time_end -gmres_time_start);
+
+	SCOREP_USER_FUNC_END();
 
 }
 

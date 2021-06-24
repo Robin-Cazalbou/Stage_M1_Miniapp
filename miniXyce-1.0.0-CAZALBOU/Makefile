@@ -31,6 +31,7 @@
 CXX=mpicxx
 LINKER=mpicxx
 EXEC=mpiexec -np 2
+INSTRUMENT=scorep --user
 
 # Build with MPI or not?
 # - If you want to run the program with MPI, make sure USE_MPI is set to -DHAVE_MPI
@@ -53,6 +54,7 @@ USE_MPI = -DHAVE_MPI -DMPICH_IGNORE_CXX_SEEK
 
 #IA32 with GCC:
 #CPP_OPT_FLAGS = -O3 -funroll-all-loops -malign-double
+
 
 
 #IA64 with GCC: (de base)
