@@ -652,19 +652,72 @@ Une petite fonction d'aide a été conçue pour récupérer la bonne valeur de $
 Précisons par ailleurs que pour des soucis de maintenabilité et de lisibilité, j'ai entrepris de rendre l'initialisation et la destruction des matrices plus simple par l'intermédiaire des constructeurs et destructeurs du C++. Lors des allocations dynamiques ou à la fin des blocs de portée, beaucoup d'allocations/désallocations sont cachées par les appels aux constructeurs/destructeurs. Nous nous rapprochons du principe orientée-objet (très élégant) disponible en C++.
 
 
-\section{Analyse de code avec Scalasca}
+\section{L'outil Scalasca}
 
-Les résultats de cette optimisation sur le temps d'exécution ont été très décevant vis-à-vis des efforts fournis : aucune accélération significative n'a été relevée et le code ne passait toujours pas à l'échelle (le temps à 2 processus était toujours plus long d'au moins 25\% que le cas séquentiel).\bigskip
+Les résultats de cette optimisation sur le temps d'exécution ont été très décevants vis-à-vis des efforts fournis : aucune accélération significative n'a été relevée et le code ne passait toujours pas à l'échelle (le temps à 2 processus était toujours plus long d'au moins 25\% par rapport à la version séquentielle).\bigskip
 
-Ne sachant expliquer l'origine de cette mauvaise scalabilité forte, j'ai décidé d'installer un logiciel de tracing des applications parallèles pour avoir un historique des événements. Le choix est assez vaste : Vampir, Tau, Scalasca, MALP, Score-P, Marmot, ... L'outil Vampir n'étant pas disponible après la version 5.14.4 gratuitement ou sans inscription \cite{vampir}, son "successeur" est considéré comme étant Score-P \cite{score-p}, une infrastructure de mesure, conçue de façon communautaire, hautement scalable et simple à utiliser pour profiler et tracer une application HPC. En lui-même, Score-P est complet, mais demande un investissement dans sa maîtrise.\medskip
+Ne sachant expliquer l'origine de cette mauvaise scalabilité forte, j'ai décidé d'installer un logiciel de tracing des applications parallèles pour avoir un historique des événements. Le choix est assez vaste : Vampir, Tau, Scalasca, MALP, Score-P, Marmot, ... L'outil Vampir n'étant pas disponible après la version 5.14.4 gratuitement ou sans inscription \cite{vampir}, son "successeur" est considéré comme étant Score-P \cite{score-p}, une infrastructure de mesure, conçue de façon communautaire, hautement scalable et simple à utiliser pour profiler et tracer une application HPC. En lui-même, Score-P est complet, mais n'effectue pas d'analyse sur les données récoltées.\medskip
 
-Ainsi, je me suis tourné vers l'outil \textbf{Scalasca} : il joue à la fois le rôle de wrapper
+Ainsi, je me suis tourné vers l'outil \textbf{Scalasca} \cite{scalasca} qui joue le rôle de wrapper pour Score-P en facilitant son utilisation. Il fait aussi le lien entre Score-P, les analyses que Scalasca est capable de produire et l'interface graphique CubeGUI (très pratique et naturelle dans son fonctionnement). Son installation nécessite quelques autres sous-modules, en plus de Cube et Score-P, et n'est pour l'instant disponible qu'à partir des sources. Le schéma \ref{schéma_scorep} présente la façon dont Score-P est intégré dans de nombreuses applications, dont Scalasca.\medskip
 
-% ajouter la référence vers le site de Scalasca
-% expliquer le fonctionnement de Scalasca, de Cube et l'interaction avec Score-P et la façon d'installer tout ça
-% mettre le schéma de scoreP avec les applications qui l'utilisent
-% expliquer comment on utilise Scalasca : instrumentation (+ l'instrumentation "user" que j'ai du ajouter car il ne prenait pas en compte toutes les fonctions), analyse, examination, filtres et trace, ainsi que l'affichage sur Cube (faire des captures)
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.5]{Images-Rapport/score-p-overview.png}
+\caption{Schéma de représentation de l'infrastructure Score-P et de ses interactions avec d'autres outils de profiling et de tracing d'applications HPC. \cite{score-p-doc}}
+\label{schéma_scorep}
+\end{center}
+\end{figure}
 
+Dans les grandes lignes, Scalasca suit le parcours suivant :
+\begin{itemize}
+\item le code est instrumenté (automatiquement ou manuellement) à l'étape de compilation en ajoutant simplement une commande wrapper de Score-P avant le compilateur. Par exemple \textit{mpicxx myapp.cpp -o myapp.exe} devient simplement \textit{scorep mpicxx myapp.cpp -o myapp.exe},
+\item le code est mesuré et analysée avec \textit{scalasca -analyse mpiexec ...} au moment de l'exécution du code,
+\item cette mesure est étudiée grâce à \textit{scalasca -examine <dossier\_experience>}, et l'interface graphique de Cube prend le relais pour un affichage et une étude simplifiés. Des optimisations (comme des filtres sur les fonctions mesurées) peuvent être ajoutés, tout comme la possibilité d'enregistrer la trace de l'application. Le schéma \ref{schéma_scorep_opti} présente ce cycle.
+\end{itemize}
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.4]{Images-Rapport/perf-opt-cycle.png}
+\caption{Cycle d'optimisation d'une application par mesures successives avec un outil comme Score-P. \cite{score-p-doc}}
+\label{schéma_scorep_opti}
+\end{center}
+\end{figure}
+
+
+\section{\'Etude de l'efficacité de l'optimisation avec Scalasca}
+
+La mesure de miniXyce qui a été faite prend en paramètre le circuit cirRLC10 (10 échelons) car elle présente des résultats qui ne descendent pas en dessous de $10^{-11}$ comme cela a pu être constaté avec cirRLC100 par exemple. L'instrumentation automatique ne s'étant pas activée comme voulu, j'ai ajouté des mesures sur les trois fonctions de la zone critique MPI (à savoir \textit{gmres}, \textit{norm} et \textit{sparse\_matrix\_vector\_product}). L'overhead causé par l'appel à Scalasca augmente significativement le temps d'exécution, mais il permet tout de même d'avoir un aperçu des points chauds du code.\bigskip
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.3]{Images-Rapport/cubeGUI.png}
+\caption{Affichage du profil et de la trace de miniXyce avec 4 processus sur le circuit cirRLC10, grâce à l'interface graphique de CubeGUI.}
+\label{cubeGUI}
+\end{center}
+\end{figure}
+
+Sur la figure \ref{cubeGUI}, nous pouvons avoir un aperçu de l'analyse proposée par Scalasca. CubeGUI étant dynamique dans son utilisation, une seule image ne suffit pas à résumer toutes les informations que l'on peut tirer : sur le panneau de gauche, les principales mesures sont présentées avec un pourcentage du temps sur la branche considérée ainsi qu'une couleur (pour faciliter la lecture et avoir un ordre d'idée de l'importance de la donnée dans la branche). Ces couleurs se retrouvent sur le panneau de droite, qui distingue la métrique suivant chacun des processus en jeu (sur la figure \ref{cubeGUI}, il y en a 4, et les processus 0 et 1 sont bien plus concernés par la métrique sélectionnée que le processus 3). Enfin, le panneau central fait aussi la distinction suivant les fonctions dans lesquelles le problème est le plus rencontré. Par exemple sur notre capture, nous étudions spécifiquement les appels à MPI\_Allreduce issus de la fonction \textit{gmres}.
+
+Voici les conclusions que nous pouvons tirer de cette étude :
+\begin{itemize}
+\item en termes de communications MPI (qui représentent 34.81\% du temps d'exécution), MPI\_ Allreduce est très présent, autant en occurrences ($127.000$ dans \textit{gmres} mais en dehors de \textit{norm}) qu'en temps (27.40\% du temps total de la simulation). Par ailleurs, Scalasca ne présente pas les MPI\_Wait comme vraiment problématiques, bien qu'il relève un désordre dans les envois et réceptions qui ralentit tout de même un peu.
+\item l'attente au niveau des Allreduce est en réalité en majorité causé par P3 : il semblerait qu'il soit le dernier à rejoindre les autres processus sur ces communications collectives. Cette observation est cruciale puisqu'elle soulève un second problème analysé par Scalasca : le déséquilibre des charges de calcul entre processus.
+
+En effet, il a toujours été supposé que chacun des processus avait un nombre quasi-équivalent de multiplications à effectuer. Mais dans le cas cirRLC10 par exemple, la matrice $A$ comporte une partie relativement tri-diagonale, puis deux autres "diagonales inclinées" qui se rejoignent vers le coin inférieur droit de la matrice sans pour autant s'atteindre. Ainsi, P3 a beaucoup plus de valeurs à recevoir et à envoyer, mais très peu de valeurs sur son blocs diagonal (moitié moins que P0 et P1). Il est donc normal qu'il soit le dernier à terminer son produit matrice-vecteur et à être attendu par les autres processus, ce qui rompt totalement la possibilité de rendre le code scalable.
+\end{itemize}
+
+
+\section{Comment rendre miniXyce scalable ?}
+
+Ce qu'une lecture du code de \textit{gmres} nous indique, c'est que les parties de synchronisations sont très présentes et régulières : les processus n'ont pas réellement le temps de profiter de leur marge de liberté par rapport aux autres, et le déséquilibre des charges relevé n'y aide pas. Alors, que faire ?\bigskip
+
+Il serait envisageable de repenser le code, même avec des envois bloquants, de façon profonde. Jocelyne Erhel \cite{erhel95} propose ainsi un découpage de la matrice dans la lignée de ce que nous avons proposé mais utilise des communications bloquantes. Ses résultats montrent une bonne scalabilité forte jusqu'à un certain seuil. Nous pourrions ainsi retravailler le code dans cette idée.\medskip
+
+Nous pourrions aussi nous restreindre à la matrice considérée et chercher un découpage optimal des lignes entre les processus, de sorte à minimiser les appels à MPI et maximiser les calculs diagonaux. Cette approche est néanmoins trop spécifique à un problème donnée et ne s'inscrit pas dans la logique des miniapps de proposer une optimisation globale à une application préexistante.\medskip
+
+Enfin, un changement de paradigme de programmation serait envisageable. \'Etant donné le nombre important d'échanges entre processus sur des valeurs, nous pourrions imaginer qu'ils partagent ces données et ne se synchronisent que lors de calculs sur une donnée globale, comme lors du calcul de la norme d'un vecteur. Le partage de travail équitable pourrait se faire plus facilement en partant du principe qu'un worker ayant terminé une ligne pourrait s'occuper d'une autre (et potentiellement travailler sur plus de lignes qu'un autre worker) tout en réduisant le temps global de calcul. Le stockage mémoire reste le même et devrait même être réduit du fait que les \textit{send\_instructions} et \textit{recv\_instructions} ne sont plus nécessaire (bien que des implémentations de sections critiques nécessitent des objets d'exclusion mutuelle).
+
+L'approche proposée est celle de la \textbf{programmation sur machine à mémoire partagée}, en exploitant les API \textbf{OpenMP} ou \textbf{Pthreads}. Un scheduling dynamique du partage des lignes est donc tout à fait approprié. L'inconvénient majeur d'une implémentation OpenMP que je relève à ce stade serait la restriction vis-à-vis de la machine cible : si plusieurs nœuds SMP ou NUMA sont disponibles sur un calculateur, nous devrons nous contenter d'un seul d'entre eux, du fait que les threads ne se partageront pas les données de façon distante. Un hybride MPI+OpenMP serait alors nécessaire, avec la faible performance que nous lui connaissons pour l'instant. Il faut raison garder : miniXyce ou Xyce peuvent se trouver en majorité exécutés sur de petits calculateurs, ou même des ordinateurs personnels (laptop/desktop) qui ne peuvent apporter qu'un nombre limité de threads mais en mémoire totalement partagée.
 
 
 
