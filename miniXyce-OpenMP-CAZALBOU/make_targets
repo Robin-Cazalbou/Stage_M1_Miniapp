@@ -1,0 +1,67 @@
+
+# Variables :
+
+# Répertoires
+OBJDIR = ./build
+SRCDIR = ./src
+UTILDIR = ./utils
+COMDIR = ./common
+
+# Fichiers sources
+SRC_FILES = $(wildcard $(SRCDIR)/*.cpp)
+COM_FILES = $(wildcard $(COMDIR)/*.cpp)
+UTIL_FILES = $(wildcard $(UTILDIR)/*.cpp)
+
+# Headers
+H_FILES = $(wildcard $(SRCDIR)/*.h)
+HCOM_FILES = $(wildcard $(COMDIR)/*.hpp)
+HUTILS_FILES = $(wildcard $(UTILDIR)/*.h)
+
+# Listes de fichiers intermédiaires (pour construire les variables objets)
+INTEROBJS = $(SRC_FILES:$(SRCDIR)/%=%)
+INTERCOMOBJS = $(COM_FILES:$(COMDIR)/%=%)
+INTERUTILOBJS = $(UTIL_FILES:$(UTILDIR)/%=%)
+
+# Objets
+OBJS = $(addprefix $(OBJDIR)/, $(INTEROBJS:.cpp=.o))
+COM_OBJS = $(addprefix $(OBJDIR)/, $(INTERCOMOBJS:.cpp=.o))
+UTIL_OBJS = $(addprefix $(OBJDIR)/, $(INTERUTILOBJS:.cpp=.o))
+
+
+# Option : pour obtenir un header contenant des infos sur la machine
+# (mettre à 0 pour désactiver)
+MINIXYCE_INFO = 1
+
+
+
+
+# Règles :
+
+all:generate_info miniXyce.x
+
+generate_info:
+	mkdir -p $(OBJDIR)/bin
+	./common/generate_info_header "$(CXX)" "$(CXXFLAGS)" "miniXyce" "MINIXYCE"
+
+miniXyce.x:generate_info $(OBJS) $(COM_OBJS) $(UTIL_OBJS) $(H_FILES) $(HCOM_FILES) $(HUTILS_FILES)
+	$(INSTRUMENT) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OBJS) $(COM_OBJS) $(UTIL_OBJS) -o $(OBJDIR)/bin/miniXyce.x $(LDFLAGS)
+
+$(OBJDIR)/%.o:$(SRCDIR)/%.cpp $(H_FILES)
+	$(INSTRUMENT) $(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIXYCE_INFO=$(MINIXYCE_INFO) -c $< -o $@ -I$(SRCDIR) -I$(COMDIR) -I$(UTILDIR) $(LDFLAGS)
+
+$(OBJDIR)/%.o:$(COMDIR)/%.cpp $(HCOM_FILES)
+	$(INSTRUMENT) $(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIXYCE_INFO=$(MINIXYCE_INFO) -c $< -o $@ -I$(SRCDIR) -I$(COMDIR) -I$(UTILDIR) $(LDFLAGS)
+
+$(OBJDIR)/%.o:$(UTILDIR)/%.cpp $(HUTILS_FILES)
+	$(INSTRUMENT) $(CXX) $(CXXFLAGS) $(CPPFLAGS) -DMINIXYCE_INFO=$(MINIXYCE_INFO) -c $< -o $@ -I$(SRCDIR) -I$(COMDIR) -I$(UTILDIR) $(LDFLAGS)
+
+
+
+
+# Nettoyage :
+
+clean:
+	rm -Rf $(OBJDIR)
+
+realclean: clean
+	rm -f gmon.out gprof.* *~ *.yaml
