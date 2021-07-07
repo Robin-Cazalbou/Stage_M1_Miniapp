@@ -49,7 +49,7 @@
 
 using namespace mX_matrix_utils;
 
-void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val, int const n, int const p)
+void mX_matrix_utils::distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val)
 {
 	// implements M[row_idx][col_idx] += val
 		// man, in the distributed matrix world, this simple thing takes such a lot of effort!
@@ -513,6 +513,87 @@ void mX_matrix_utils::print_matrix(distributed_sparse_matrix &A)
 
 
 
+
+// =================================================
+
+// A simple scalar product between two vectors u1 and u2
+// The result is contained into res. By the way, there is no "norm" function
+// because you can use a pragma omp single and a sqrt on res after the call of this function
+// Attention ! With OpenMP, res has to be **shared** between all threads
+void mX_matrix_utils::scal_prod_OMP(std::vector<double> const& u1, std::vector<double> const& u2, double& res)
+{
+	assert( u1.size() == u2.size() );
+
+	#pragma omp single
+	{
+		#pragma omp atomic write
+		res = 0.0;
+	}
+
+	#pragma omp for reduction(+:res)
+	for(unsigned int i = 0; i<u1.size(); i++)
+	{
+		res += u1[i]*u2[i];
+	}
+}
+
+
+// Compute alpha*A*x + beta*b, and store it into y
+// A BLAS/Lapack routine DGEMV can possibly be used instead of this function (with some modifications)
+void mX_matrix_utils::sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double& alpha, double& beta)
+{
+	unsigned int start_row = A->start_row;
+	unsigned int end_row = A->end_row;
+
+	assert( start_row == 0);
+	assert( end_row-start_row+1 == x.size() );
+	assert( x.size() == y.size() );
+	assert( y.size() == b.size() );
+
+	#pragma omp parallel for
+	for(unsigned int i = start_row; i <= end_row; i++)
+	{
+		// Compute y[i] = (A*x)[i] :
+		y[i] = 0.0;
+
+		distributed_sparse_matrix_entry* curr = A->row_headers[i];
+		while(curr)
+		{
+			y[i] += (curr->value)*x[curr->column];
+			curr = curr->next_in_row;
+		}
+
+		// Multiply by alpha
+		y[i] *= alpha;
+		// Add beta*b
+		y[i] += beta*b[i];
+	}
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// =================================================
+// ANCIENNE VERSION
+// =================================================
+
+
 void mX_matrix_utils::mv_prod_div_add_omp(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, double const& t_step, std::vector<double> const& b)
 {
 	// compute the matrix vector product A*x and return it in y
@@ -533,7 +614,7 @@ void mX_matrix_utils::mv_prod_div_add_omp(distributed_sparse_matrix* A, std::vec
 	assert( end_row-start_row+1 == x.size() );
 
 
-	#pragma omp parallel for schedule(dynamic,1) shared(A,start_row,end_row,y)
+	#pragma omp parallel for schedule(static,1) shared(A,start_row,end_row,y)
 	for(int i = start_row; i <= end_row; i++)
 	{
 		// Set the y[i] value to zero because it can be something different
@@ -576,7 +657,7 @@ void mX_matrix_utils::mv_prod_div_diff_omp(distributed_sparse_matrix* A, std::ve
 	assert( end_row-start_row+1 == x.size() );
 
 
-	#pragma omp parallel for schedule(dynamic,1) shared(A,start_row,end_row,y)
+	#pragma omp parallel for schedule(static,1) shared(A,start_row,end_row,y)
 	for(int i = start_row; i <= end_row; i++)
 	{
 		// Set the y[i] value to zero because it can be something different
@@ -598,38 +679,30 @@ void mX_matrix_utils::mv_prod_div_diff_omp(distributed_sparse_matrix* A, std::ve
 }
 
 
+extern double sum;
 
-void mX_matrix_utils::norm_omp(std::vector<double> const& x, double &res)
+double mX_matrix_utils::norm_omp(std::vector<double> const& x)
 {
 	// at last, a function that's relatively simple to implement in parallel
 
 	//SCOREP_USER_FUNC_BEGIN();
 
-	#pragma omp single
-	{
-		res = 0.0;
-	}
-
-	#pragma omp for reduction(+ : res) schedule(dynamic,1)
+	#pragma omp for reduction(+ : sum) schedule(static,1)
 	for (int i = 0; i < x.size(); i++)
 	{
-		res += x[i]*x[i];
+		sum += x[i]*x[i];
 	}
 
-	#pragma omp single
-	{
-		res = std::sqrt(res);
-	}
+	return std::sqrt(sum);
 
 	//SCOREP_USER_FUNC_END();
 }
 
 
 
-
 void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0,
 	double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts,
-	Storage_GMRES &storage, double &sum)
+	Storage_GMRES &storage)
 {
 	// here's the star of the show, the guest of honor, none other than Mr.GMRES
 
@@ -649,22 +722,22 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 	assert( end_row-start_row+1 == x.size() );
 
 	// x <- x0 , sharing the work between the workers :
-	#pragma omp for schedule(dynamic,1)
+	#pragma omp for schedule(static,1)
 	for(int i = 0; i<x.size(); i++)
 	{
 		x[i] = x0[i];
 	}
 
 	mv_prod_div_diff_omp(A, x, storage.temp1, 1.0, b);
-	norm_omp(storage.temp1, sum);
-
-	// err, restarts and iters are shared variables : only one thread will update them once norm1 is computed
 	#pragma omp single
 	{
-		err = sum;
-	  restarts = -1;
-		iters = 0;
+		#pragma omp atomic write
+		sum = 0.0;
 	}
+
+	err = norm_omp(storage.temp1);
+	restarts = -1;
+	iters = 0;
 
 
 	while (err > tol)
@@ -672,27 +745,27 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 		// at the start of every re-start
 			// the initial guess is already stored in x
 
-		// Only one thread update restarts, and there is no need for the others to wait
-		// because there are plenty of synchronization after it : they won't leave the While before restarts is updated
-		#pragma omp single nowait
-		{
-			restarts++;
-		}
+		restarts++;
 
 		mv_prod_div_add_omp(A, x, storage.temp1, -1.0, b);
-		norm_omp(storage.temp1, sum);
+		#pragma omp single
+		{
+			#pragma omp atomic write
+			sum = 0.0;
+		}
+		double beta = norm_omp(storage.temp1);
 
-		#pragma omp for schedule(dynamic,1)
+		#pragma omp for schedule(static,1)
 		for (int i = start_row; i <= end_row; i++)
 		{
-			storage.V[i][0] = storage.temp1[i] / sum;
+			storage.V[i][0] = storage.temp1[i] / beta;
 		}
+
+		err = beta;
+		iters = 0;
 
 		#pragma omp single
 		{
-			// Only one thread will copy the beta value into err, update iters and g[0]
-			err = sum;
-			iters = 0;
 			storage.g[0] = err;
 		}
 
@@ -708,16 +781,12 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 
 		while ((err > tol) && (iters < k))
 		{
-
-			#pragma omp single
-			{
-				iters++;
-			}
+			iters++;
 
 			// Mr.GMRES is now going to update the V matrix
 				// for which he will require a matrix vector multiplication
 
-			#pragma omp for schedule(dynamic,1)
+			#pragma omp for schedule(static,1)
 			for (int i = start_row; i <= end_row; i++)
 			{
 				storage.temp1[i] = storage.V[i][iters-1];
@@ -733,10 +802,11 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 			{
 				#pragma omp single
 				{
+					#pragma omp atomic write
 					sum = 0.0;
 				}
 
-				#pragma omp for schedule(dynamic,1) reduction(+ : sum)
+				#pragma omp for schedule(static,1) reduction(+ : sum)
 				for (int j = start_row; j <= end_row; j++)
 				{
 					sum += storage.temp2[j]*storage.V[j][i];
@@ -744,23 +814,32 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 
 				#pragma omp single nowait
 				{
+					#pragma omp atomic write
 					storage.R[iters-1][i] = sum;
 				}
 
-				#pragma omp for schedule(dynamic,1)
+				#pragma omp for schedule(static,1)
 				for (int j = start_row; j <= end_row; j++)
 				{
 					storage.temp2[j] -= sum*storage.V[j][i];
 				}
 			}
 
-			norm_omp(storage.temp2, sum); // R contains an additionnal value for each column (R is upper triangular + with an under-diagonal (containing the norms))
+
 			#pragma omp single
 			{
-				storage.R[iters-1][iters] = sum;
+				#pragma omp atomic write
+				sum = 0.0;
 			}
 
-			#pragma omp for schedule(dynamic,1)
+			double gamma = norm_omp(storage.temp2); // R contains an additionnal value for each column (R is upper triangular + with an under-diagonal (containing the norms))
+			#pragma omp single
+			{
+				#pragma omp atomic write
+				storage.R[iters-1][iters] = gamma;
+			}
+
+			#pragma omp for schedule(static,1)
 			for (int i = start_row; i <= end_row; i++)
 			{
 				storage.temp2[i] /= storage.R[iters-1][iters];
@@ -780,7 +859,9 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 					double old_i = storage.R[iters-1][i];
 					double old_i_plus_one = storage.R[iters-1][i+1];
 
+					#pragma omp atomic write
 					storage.R[iters-1][i] = storage.cosines[i]*old_i + storage.sines[i]*old_i_plus_one;
+					#pragma omp atomic write
 					storage.R[iters-1][i+1] = -(storage.sines[i])*old_i + storage.cosines[i]*old_i_plus_one;
 				}
 			}
@@ -789,12 +870,15 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 
 			#pragma omp single
 			{
+				#pragma omp atomic write
 				storage.cosines[iters-1] = storage.R[iters-1][iters-1]/r;
+				#pragma omp atomic write
 				storage.sines[iters-1] = storage.R[iters-1][iters]/r;
 
 				double old_i = storage.R[iters-1][iters-1];
 				double old_i_plus_one = storage.R[iters-1][iters];
 
+				#pragma omp atomic write
 				storage.R[iters-1][iters-1] = storage.cosines[iters-1]*old_i + storage.sines[iters-1]*old_i_plus_one;
 			}
 
@@ -805,11 +889,14 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 			#pragma omp single
 			{
 				double old_g = storage.g[iters-1];
-				storage.g[iters-1] = old_g*storage.cosines[iters-1];
-				storage.g[iters] = -old_g*storage.sines[iters-1];
 
-				err = std::abs(storage.g[iters]);
+				#pragma omp atomic write
+				storage.g[iters-1] = old_g*storage.cosines[iters-1];
+				#pragma omp atomic write
+				storage.g[iters] = -old_g*storage.sines[iters-1];
 			}
+			err = std::abs(storage.g[iters]);
+
 		}
 
 		// ok, so either Mr.GMRES has a solution
@@ -822,10 +909,11 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 		{
 			#pragma omp single
 			{
+				#pragma omp atomic write
 				sum = 0.0;
 			}
 
-			#pragma omp for schedule(dynamic,1) reduction(+ : sum)
+			#pragma omp for schedule(static,1) reduction(+ : sum)
 			for (int j = iters-1; j > i; j--)
 			{
 				sum += storage.R[j][i]*storage.y[iters-1-j];
@@ -833,29 +921,24 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 
 			#pragma omp single
 			{
+				#pragma omp atomic write
 				storage.y[i] = (storage.g[i] - sum)/(storage.R[i][i]);
 			}
 		}
 
 		// ok, so y is ready (although it's stored upside down)
 
+		#pragma omp for schedule(static,1)
 		for (int i = start_row; i <= end_row; i++)
 		{
-			#pragma omp single
-			{
-				sum = 0.0;
-			}
+			double local_sum = 0.0;
 
-			#pragma omp for schedule(dynamic,1) reduction(+ : sum)
 			for (int j = iters-1; j >= 0; j--)
 			{
-				sum += storage.y[iters-1-j]*storage.V[i-start_row][j];
+				local_sum += storage.y[iters-1-j]*storage.V[i-start_row][j];
 			}
 
-			#pragma omp single
-			{
-				x[i-start_row] += sum;
-			}
+			x[i] += local_sum;
 		}
 
 		// the new x is also ready
@@ -864,12 +947,9 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 
 	// if Mr.GMRES ever reaches here, it means he's solved the problem
 
-	#pragma omp single
+	if (restarts < 0)
 	{
-		if (restarts < 0)
-		{
-			restarts = 0;
-		}
+		restarts = 0;
 	}
 
 	//SCOREP_USER_FUNC_END();

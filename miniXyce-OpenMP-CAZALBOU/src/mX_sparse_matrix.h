@@ -45,13 +45,11 @@ namespace mX_matrix_utils
 	struct Storage_GMRES
 	{
 		// Vectors
-		std::vector<double> temp1;
-		std::vector<double> temp2;
-		std::vector<double> cosines;
-		std::vector<double> sines;
+		std::vector<double> givens_cosines;
+		std::vector<double> givens_sines;
 		std::vector<double> g;
 		std::vector<double> y;
-		// Matrices
+		// Matrices : each matrix is a vector of columns, and each column is a vector too
 		std::vector< std::vector<double> > V;
 		std::vector< std::vector<double> > R;
 
@@ -60,27 +58,21 @@ namespace mX_matrix_utils
 		Storage_GMRES(int k, int n)
 		{
 			// Vectors initialization
-			temp1 = std::vector<double>(n, 0.0);
-			temp2 = std::vector<double>(n, 0.0);
-			cosines = std::vector<double>(k, 0.0);
-			sines = std::vector<double>(k, 0.0);
+			givens_cosines = std::vector<double>(k, 0.0);
+			givens_sines = std::vector<double>(k, 0.0);
 			g = std::vector<double>(k+1, 0.0);
 			y = std::vector<double>(k, 0.0);
 
 			// Matrices initialization
-			V = std::vector< std::vector<double> >(n, std::vector<double>(k+1, 0.0) );
+			V = std::vector< std::vector<double> >(k+1, std::vector<double>(n, 0.0) );
 
-			R = std::vector< std::vector<double> >(k, std::vector<double>(0) );
+			R = std::vector< std::vector<double> >(k); // R contains some values of H, so it is allocated as an Hessenberg matrix
 			for(int i = 0; i<k; i++)
 			{
-				for(int j = 0; j<i+1; j++)
-				{
-					R[i].push_back(0.0);
-				}
-				R[i].push_back(0.0); // R is supposed to be upper triangular, but another coefficient is needed for each sub-vector
+				R[i] = std::vector<double>(i+2, 0.0);
 			}
-
 		}
+
 	};
 
 	struct distributed_sparse_matrix_entry
@@ -117,7 +109,7 @@ namespace mX_matrix_utils
 	};
 
 
-	void distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val, int const n, int const p);
+	void distributed_sparse_matrix_add_to(distributed_sparse_matrix* M, int const row_idx, int const col_idx, double const val);
 
 	void sparse_matrix_vector_product(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, int nb_proc);
 
@@ -133,10 +125,21 @@ namespace mX_matrix_utils
 
 
 
+	// ===========================================
+	void scal_prod(std::vector<double> const& u1, std::vector<double> const& u2, double& res);
+	void sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double& alpha, double& beta);
+
+
+
+
+
+	// ===========================================
+	// ANCIENNE VERSION
+	// ===========================================
 	void mv_prod_div_add_omp(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, double const& t_step, std::vector<double> const& b);
 	void mv_prod_div_diff_omp(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, double const& t_step, std::vector<double> const& b);
-	void norm_omp(std::vector<double> const& x, double &res);
-	void gmres_omp(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts, Storage_GMRES &storage, double &sum);
+	double norm_omp(std::vector<double> const& x);
+	void gmres_omp(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts, Storage_GMRES &storage);
 }
 
 #endif
