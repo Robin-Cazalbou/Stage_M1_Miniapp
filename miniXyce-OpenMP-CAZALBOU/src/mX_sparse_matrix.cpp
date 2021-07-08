@@ -540,7 +540,7 @@ void mX_matrix_utils::scal_prod_OMP(std::vector<double> const& u1, std::vector<d
 
 // Compute alpha*A*x + beta*b, and store it into y
 // A BLAS/Lapack routine DGEMV can possibly be used instead of this function (with some modifications)
-void mX_matrix_utils::sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double& alpha, double& beta)
+void mX_matrix_utils::sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double const& alpha, double const& beta)
 {
 	unsigned int start_row = A->start_row;
 	unsigned int end_row = A->end_row;
@@ -550,7 +550,7 @@ void mX_matrix_utils::sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector
 	assert( x.size() == y.size() );
 	assert( y.size() == b.size() );
 
-	#pragma omp parallel for
+	#pragma omp for
 	for(unsigned int i = start_row; i <= end_row; i++)
 	{
 		// Compute y[i] = (A*x)[i] :
@@ -572,15 +572,65 @@ void mX_matrix_utils::sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector
 }
 
 
+// Compute alpha*x+beta*b, and store it into y
+// A BLAS/Lapack routine SAXPY can possibly be used instead of this function (with some modifications)
+void mX_matrix_utils::saxpy_OMP(std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double const& alpha, double const& beta)
+{
+	assert( x.size() == y.size() );
+	assert( y.size() == b.size() );
+
+	#pragma omp for
+	for(unsigned int i = 0; i<x.size(); i++)
+	{
+		y[i] = alpha*x[i] + beta*b[i];
+	}
+
+}
+
+
 // Perform an Arnoldi iteration, given the iter iteration :
 // - compute the new column of the Hessenberg matrix using the previsou vectors v_0, v_1, ..., v_(iter-1)
 // stored into the V matrix (at V[iter])
-// - each component of this new column is a scalar product ( h_j := v_j . A*v_(iter-1) ) and the last one is
+// - each component of this new column is a scalar product ( h_j := v_j . [A*v_(iter-1)]_updated, where
+// the update is A*v_(iter-1) <-- A*v_(iter-1) - h_i*v_i) and the last one is
 // the norm h_iter := ||A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1)||
 // and this column is stored into the R matrix (at R[iter-1])
 void mX_matrix_utils::arnoldi_OMP(distributed_sparse_matrix* A, std::vector<std::vector<double>>& V, std::vector<std::vector<double>>& R, int const& iter)
 {
-	// assert(iter <= "k") avec k mesuré grâce aux tailles des vecteurs et matrices en jeu
+	// Some asserts to protect the code
+	assert( A->start_row == 0);
+	assert( (unsigned)iter <= R.size() );
+	assert( V.size() == R.size() + 1 );
+	for(unsigned int i = 0; i<=(unsigned)iter; i++)
+	{
+		assert( (unsigned)(A->end_row - A->start_row + 1) == V[i].size() );
+	}
+	assert( R[iter-1].size() == (unsigned)(iter+1) );
+
+
+	// Compute A*v_(iter-1) and store it into the V[iter]
+	sparse_gaxpy_OMP(A, V[iter-1], std::vector<double>(V[iter-1].size(), 0.0), V[iter], 1.0, 0.0);
+	// Compute scalar products : h_0, h_1, ..., h_(iter-1)
+	// and substract h_0*v_0, h_1*v_1, ..., h_(iter-1)*v_(iter-1) to A*v_(iter-1)
+	// This loop has to be executed in order, from h_0 to h_(iter-1)
+	for(int i = 0; i<iter; i++)
+	{
+		// Compute h_i
+		scal_prod_OMP(V[i], V[iter], R[iter-1][i]);
+		// Update A*v_(iter-1) as : A*v_(iter-1) - h_i * v_i
+		saxpy_OMP(V[iter], V[i], V[iter], 1.0, -1.0);
+	}
+	// Compute the norm h_iter := ||A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1)||
+	// i.e. ||V[iter]|| now, after its updates
+	scal_prod_OMP(V[iter], V[iter], R[iter-1][iter]);
+	#pragma omp single
+	{
+		R[iter-1][iter] = std::sqrt(R[iter-1][iter]);
+	}
+	// Compute : ( A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1) ) / h_iter
+	// i.e. V[iter] <-- V[iter] / h_iter
+	saxpy_OMP(V[iter], std::vector<double>(V[iter].size(), 0.0), V[iter], 1.0/(R[iter-1][iter]), 0.0);
+
 }
 
 
@@ -732,68 +782,7 @@ void mX_matrix_utils::gmres_OMP(distributed_sparse_matrix* A, std::vector<double
 
 
 
-			// Mr.GMRES is now going to update the V matrix
-				// for which he will require a matrix vector multiplication
 
-			#pragma omp for schedule(static,1)
-			for (int i = start_row; i <= end_row; i++)
-			{
-				storage.temp1[i] = storage.V[i][iters-1];
-			}
-			mv_prod_div_add_omp(A, storage.temp1, storage.temp2, 1.0, std::vector<double>(storage.temp1.size(), 0.0) );
-
-
-			// Right, Mr.GMRES now has the matrix vector product
-				// now he will orthogonalize this vector with the previous ones
-					// with some help from Messrs Gram and Schmidt
-
-			for (int i = 0; i < iters; i++) // no OpenMP parallelism here because iters <= k << n, so it is better to parallelize over the 2 inner loops
-			{
-				#pragma omp single
-				{
-					#pragma omp atomic write
-					sum = 0.0;
-				}
-
-				#pragma omp for schedule(static,1) reduction(+ : sum)
-				for (int j = start_row; j <= end_row; j++)
-				{
-					sum += storage.temp2[j]*storage.V[j][i];
-				}
-
-				#pragma omp single nowait
-				{
-					#pragma omp atomic write
-					storage.R[iters-1][i] = sum;
-				}
-
-				#pragma omp for schedule(static,1)
-				for (int j = start_row; j <= end_row; j++)
-				{
-					storage.temp2[j] -= sum*storage.V[j][i];
-				}
-			}
-
-
-			#pragma omp single
-			{
-				#pragma omp atomic write
-				sum = 0.0;
-			}
-
-			double gamma = norm_omp(storage.temp2); // R contains an additionnal value for each column (R is upper triangular + with an under-diagonal (containing the norms))
-			#pragma omp single
-			{
-				#pragma omp atomic write
-				storage.R[iters-1][iters] = gamma;
-			}
-
-			#pragma omp for schedule(static,1)
-			for (int i = start_row; i <= end_row; i++)
-			{
-				storage.temp2[i] /= storage.R[iters-1][iters];
-				storage.V[i][iters] = storage.temp2[i];
-			}
 
 
 			// Right, Mr.GMRES has successfully updated V

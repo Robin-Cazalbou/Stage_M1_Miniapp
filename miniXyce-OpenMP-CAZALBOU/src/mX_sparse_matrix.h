@@ -126,6 +126,7 @@ namespace mX_matrix_utils
 
 
 	// ===========================================
+	// A METTRE A JOUR !!!!
 	void scal_prod(std::vector<double> const& u1, std::vector<double> const& u2, double& res);
 	void sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double& alpha, double& beta);
 
