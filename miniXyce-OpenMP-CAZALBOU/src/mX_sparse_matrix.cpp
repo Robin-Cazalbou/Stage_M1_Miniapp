@@ -572,146 +572,48 @@ void mX_matrix_utils::sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// =================================================
-// ANCIENNE VERSION
-// =================================================
-
-
-void mX_matrix_utils::mv_prod_div_add_omp(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, double const& t_step, std::vector<double> const& b)
+// Perform an Arnoldi iteration, given the iter iteration :
+// - compute the new column of the Hessenberg matrix using the previsou vectors v_0, v_1, ..., v_(iter-1)
+// stored into the V matrix (at V[iter])
+// - each component of this new column is a scalar product ( h_j := v_j . A*v_(iter-1) ) and the last one is
+// the norm h_iter := ||A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1)||
+// and this column is stored into the R matrix (at R[iter-1])
+void mX_matrix_utils::arnoldi_OMP(distributed_sparse_matrix* A, std::vector<std::vector<double>>& V, std::vector<std::vector<double>>& R, int const& iter)
 {
-	// compute the matrix vector product A*x and return it in y
-	// y can contain some values we don't care
-
-	// User-instrumentation with Score-P :
-	//SCOREP_USER_FUNC_BEGIN();
-
-	assert( A->start_row == 0);
-	int start_row = A->start_row;
-	int end_row = A->end_row;
-
-	// Assert x and y have the same length
-	assert( x.size() == y.size() );
-	// Same for the size of b
-	assert( y.size() == b.size() );
-	// Assert the number of rows in A is equal to the size of x :
-	assert( end_row-start_row+1 == x.size() );
-
-
-	#pragma omp parallel for schedule(static,1) shared(A,start_row,end_row,y)
-	for(int i = start_row; i <= end_row; i++)
-	{
-		// Set the y[i] value to zero because it can be something different
-		y[i] = 0.0;
-
-		distributed_sparse_matrix_entry* curr = A->row_headers[i];
-		while(curr)
-		{
-			y[i] += (curr->value)*x[curr->column];
-			// Continue with the next entry in the matrix row :
-			curr = curr->next_in_row;
-		}
-
-		y[i] /= t_step;
-		y[i] += b[i];
-	}
-
-	//SCOREP_USER_FUNC_END();
+	// assert(iter <= "k") avec k mesuré grâce aux tailles des vecteurs et matrices en jeu
 }
 
 
 
-void mX_matrix_utils::mv_prod_div_diff_omp(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, double const& t_step, std::vector<double> const& b)
-{
-	// compute the matrix vector product A*x and return it in y
-	// y can contain some values we don't care
-
-	// User-instrumentation with Score-P :
-	//SCOREP_USER_FUNC_BEGIN();
-
-	assert( A->start_row == 0);
-	int start_row = A->start_row;
-	int end_row = A->end_row;
-
-	// Assert x and y have the same length
-	assert( x.size() == y.size() );
-	// Same for the size of b
-	assert( y.size() == b.size() );
-	// Assert the number of rows in A is equal to the size of x :
-	assert( end_row-start_row+1 == x.size() );
-
-
-	#pragma omp parallel for schedule(static,1) shared(A,start_row,end_row,y)
-	for(int i = start_row; i <= end_row; i++)
-	{
-		// Set the y[i] value to zero because it can be something different
-		y[i] = 0.0;
-
-		distributed_sparse_matrix_entry* curr = A->row_headers[i];
-		while(curr)
-		{
-			y[i] += (curr->value)*x[curr->column];
-			// Continue with the next entry in the matrix row :
-			curr = curr->next_in_row;
-		}
-
-		y[i] /= t_step;
-		y[i] -= b[i];
-	}
-
-	//SCOREP_USER_FUNC_END();
-}
-
-
-extern double sum;
-
-double mX_matrix_utils::norm_omp(std::vector<double> const& x)
-{
-	// at last, a function that's relatively simple to implement in parallel
-
-	//SCOREP_USER_FUNC_BEGIN();
-
-	#pragma omp for reduction(+ : sum) schedule(static,1)
-	for (int i = 0; i < x.size(); i++)
-	{
-		sum += x[i]*x[i];
-	}
-
-	return std::sqrt(sum);
-
-	//SCOREP_USER_FUNC_END();
-}
 
 
 
-void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// The linear system solver using the GMRES(k) method :
+// - it solves A*x=b, giving an initial x0
+// - its tolerated error is tol, and it returns the error err computed
+// - maximum k iterations are done, and the effective number of iterations is returned in iters
+// - if some restarts are needed, their number is returned in restarts
+// - the storage contains all working variables needed (matrices & vectors) : it is shared between threads
+// This function has to be called inside a parallel region
+void mX_matrix_utils::gmres_OMP(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0,
 	double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts,
 	Storage_GMRES &storage)
 {
-	// here's the star of the show, the guest of honor, none other than Mr.GMRES
-
-	// first Mr.GMRES will compute the error in the initial guess
-		// if it's already smaller than tol, he calls it a day
-		// otherwise he settles down to work in mysterious ways his wonders to perform
-
-
-	//SCOREP_USER_FUNC_BEGIN();
 
 	int start_row = A->start_row;
 	int end_row = A-> end_row;
@@ -721,67 +623,114 @@ void mX_matrix_utils::gmres_omp(distributed_sparse_matrix* A, std::vector<double
 	assert( start_row == 0 );
 	assert( end_row-start_row+1 == x.size() );
 
-	// x <- x0 , sharing the work between the workers :
-	#pragma omp for schedule(static,1)
-	for(int i = 0; i<x.size(); i++)
+	// ===========================================================================
+	// Step 1 : Compute the initial error ||r0|| := ||b-A*x0||
+	// If it's smaller than tol, GMRES alerady know a good solution, which is x0
+	// Otherwise, other steps are needed
+	// ===========================================================================
+
+	// Copy x0 into x
+	#pragma omp for
+	for(unsigned int i = 0; i<x.size(); i++)
 	{
 		x[i] = x0[i];
 	}
-
-	mv_prod_div_diff_omp(A, x, storage.temp1, 1.0, b);
+	// Compute r0 := b-A*x0 (or b-A*x now, since x0 has been copied into x)
+	// and store it into storage.V[0] (i.e. the first vector of Krylov's subspace)
+	sparse_gaxpy_OMP(A, x, b, storage.V[0], -1.0, 1.0);
+	// Compute ||r0|| using scalar product and square root, and store it into err
+	// BE WARY : err has to be shared between threads !
+	scal_prod_OMP(storage.V[0], storage.V[0], err);
 	#pragma omp single
 	{
-		#pragma omp atomic write
-		sum = 0.0;
+		err = std::sqrt(err);
 	}
-
-	err = norm_omp(storage.temp1);
+	// Update restarts & iters (they are supposed to be firstprivate)
 	restarts = -1;
 	iters = 0;
 
 
+	// While the error is greater than the tolerance, we compute a new iteration
+	// This loop is done the first time we come here, and re-done whenever a
+	// restart is needed
 	while (err > tol)
 	{
-		// at the start of every re-start
-			// the initial guess is already stored in x
-
 		restarts++;
 
-		mv_prod_div_add_omp(A, x, storage.temp1, -1.0, b);
-		#pragma omp single
+		// ===========================================================================
+		// Step 2 : Compute v0 := r0/||r0|| and store it into storage.V[0]
+		// If it's the first we come here (i.e. restarts == 0), we just need to divide
+		// storage.V[0] by err (since it contains ||r0||) and store err into storage.g[0]
+		// If we come here because of a restart, we have to re-compute r0 with the
+		// updated value of x (i.e. which is not equal to x0)
+		// ===========================================================================
+
+		// If it's the first time we come here
+		if(restarts == 0)
 		{
-			#pragma omp atomic write
-			sum = 0.0;
+			// Compute r0/||r0||
+			#pragma omp for
+			for(auto& val : storage.V[0]) // Remark : ths syntax is valid for OpenMP 5, but not before (gcc 9)
+			{
+				val /= err;
+			}
+			// Update g with its first value : err
+			#pragma omp single
+			{
+				storage.g[0] = err;
+			}
 		}
-		double beta = norm_omp(storage.temp1);
-
-		#pragma omp for schedule(static,1)
-		for (int i = start_row; i <= end_row; i++)
+		// If it's not the first time we come here, i.e. if we are doing a restart
+		else
 		{
-			storage.V[i][0] = storage.temp1[i] / beta;
+			// Re-compute r0 with the new x
+			sparse_gaxpy_OMP(A, x, b, storage.V[0], -1.0, 1.0);
+			// Re-compute ||r0||
+			scal_prod_OMP(storage.V[0], storage.V[0], err);
+			#pragma omp single
+			{
+				err = std::sqrt(err);
+				storage.g[0] = err;
+			}
+			// Compute r0/||r0||
+			#pragma omp for
+			for(auto& val : storage.V[0]) // Remark : ths syntax is valid for OpenMP 5, but not before (gcc 9)
+			{
+				val /= err;
+			}
+			// Update iters to 0 (we count the number of iterations for each restart,
+			// considering the no-restart case as 0 restarts with iters iterations)
+			iters = 0;
 		}
 
-		err = beta;
-		iters = 0;
 
-		#pragma omp single
-		{
-			storage.g[0] = err;
-		}
-
-		// ok, Mr.GMRES has determined the initial values for
-			// V,R,g,sines,cosines,err and iters
-			// he updates these at every iteration until
-				// either err becomes less than tol
-				// or a new restart is required
-
-		// note that Mr.GMRES does not think it necessary to store the upper Hessenberg matrix at each iteration
-			// he computes R at each iteration from the new Hessenberg matrix column
-			// and he's clever enough to determine err without having to solve for x at each iteration
-
+		// This loop is done each time a new iteration is needed (i.e. until the error
+		// err is less than the tolerance tol)
+		// But if the error is greater than tol and we ran out of iters (i.e. iters >= k)
+		// then a restart is needed and we leave this loop to perform the restart above
 		while ((err > tol) && (iters < k))
 		{
 			iters++;
+
+			// ===========================================================================
+			// Step 3 : Perform an Arnoldi iteration
+			// In other words, update storage.V with a new vector vi obtained with Arnoldi
+			// orthonormalization with the otherq vectors of storage.V
+			// Besides, storage.R is updated with the new column of the Hessenberg matrix
+			// obtained with Arnoldi (we will apply some Givens rotation later to update R
+			// to become the real R, and not just H)
+			// ===========================================================================
+
+			arnoldi_OMP(A, storage.V, storage.R, iters);
+
+
+
+
+
+
+
+
+
 
 			// Mr.GMRES is now going to update the V matrix
 				// for which he will require a matrix vector multiplication

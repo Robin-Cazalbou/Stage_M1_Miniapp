@@ -132,14 +132,7 @@ namespace mX_matrix_utils
 
 
 
-
-	// ===========================================
-	// ANCIENNE VERSION
-	// ===========================================
-	void mv_prod_div_add_omp(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, double const& t_step, std::vector<double> const& b);
-	void mv_prod_div_diff_omp(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> &y, double const& t_step, std::vector<double> const& b);
-	double norm_omp(std::vector<double> const& x);
-	void gmres_omp(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts, Storage_GMRES &storage);
+	void gmres_OMP(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts, Storage_GMRES &storage);
 }
 
 #endif
