@@ -32,6 +32,8 @@
 
 #include "mX_linear_DAE.h"
 
+#include <omp.h>
+
 using namespace mX_source_utils;
 using namespace mX_matrix_utils;
 using namespace mX_linear_DAE_utils;
@@ -120,7 +122,7 @@ void mX_linear_DAE_utils::evaluate_b_omp(double t, mX_linear_DAE* dae, std::vect
   // and a particular time point t
   // this function computes and returns the vector b at that time point t
 
-  #pragma omp for schedule(dynamic,1)
+  #pragma omp for
   for(unsigned int i = 0; i < (dae->b).size(); i++)
   {
     if ( (dae->b)[i] == nullptr )

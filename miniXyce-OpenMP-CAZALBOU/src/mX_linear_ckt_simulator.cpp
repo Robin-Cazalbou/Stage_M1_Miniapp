@@ -46,6 +46,15 @@
 #include "YAML_Doc.hpp"
 
 
+#include <omp.h>
+
+double sum = 0.0;
+
+
+// Débug :
+#include <fenv.h>
+#include <unistd.h>
+
 
 using namespace mX_parse_utils;
 using namespace mX_source_utils;
@@ -54,6 +63,9 @@ using namespace mX_parms_utils;
 
 int main(int argc, char* argv[])
 {
+	// Débug :
+	//feenableexcept(FE_INVALID | FE_OVERFLOW);
+
 	// this is of course, the actual transient simulator
 	int p=1, pid=0, n=0;
 
@@ -247,32 +259,33 @@ int main(int argc, char* argv[])
 	std::vector<double> RHS(n, 0.0);
 	std::vector<double> b(n, 0.0);
 	Storage_GMRES storage(k, n);
-	double sum;
 
 
-	// Doute : res, iters et restarts (privé ou partagé ?) et donc influe sur le status de total_gmres_res et total_gmres_iters
-	#pragma omp parallel shared(t_stop,b,dae,x,RHS,t_step,tol,k,outfile,io_tend,storage,sum) private(t,trans_steps,res,iters,restarts,total_gmres_res,total_gmres_iters)
+	#pragma omp parallel num_threads(4) shared(total_gmres_res,total_gmres_iters,trans_steps,b,dae,x,RHS,t_step,tol,k,outfile,io_tend,storage,res) firstprivate(t,t_stop,iters,restarts)
 	{
 
 		while (t < t_stop)
 		{
-	    trans_steps++;
+			#pragma omp single nowait
+			{
+				trans_steps++;
+			}
 
 			// new time point t => new value for b(t)
 			evaluate_b_omp(t, dae, b);
 
 			// build the linear system Ax = b that needs to be solved at this time point
 				// Backward Euler is used at every iteration
-			mv_prod_div_add_omp(dae->B, x, RHS, t_step, b);
+			sparse_gaxpy_OMP(dae->B, x, b, RHS, 1.0/t_step, 1.0);
 
 			// now solve the linear system just built using GMRES(k)
-			gmres_omp(dae->A,RHS,x,tol,res,k,x,iters,restarts, storage, sum);
+			gmres_omp(dae->A,RHS,x,tol,res,k,x,iters,restarts,storage);
 
-	    total_gmres_iters += iters;
-	    total_gmres_res += res;
-
-			#pragma omp barrier
-			// barrière à supprimer si on utilise un pragma omp for à la fin de gmres, car barrière implicite
+			#pragma omp single nowait
+			{
+				total_gmres_iters += iters;
+		    total_gmres_res += res;
+			}
 
 			#pragma omp single nowait
 			{
@@ -294,6 +307,7 @@ int main(int argc, char* argv[])
 
 			// increment t
 			t += t_step;
+
 		}
 
 	}

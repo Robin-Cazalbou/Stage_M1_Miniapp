@@ -263,8 +263,10 @@ int main()
 
 	int iter = 1;
 
-	#pragma omp parallel num_threads(4)
+	#pragma omp parallel firstprivate(iter) num_threads(4)
 	{
+		arnoldi_OMP(&A, V, R, iter);
+		iter++;
 		arnoldi_OMP(&A, V, R, iter);
 	}
 

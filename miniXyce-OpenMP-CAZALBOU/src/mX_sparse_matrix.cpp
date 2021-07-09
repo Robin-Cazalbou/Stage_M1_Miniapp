@@ -589,7 +589,7 @@ void mX_matrix_utils::saxpy_OMP(std::vector<double> const& x, std::vector<double
 
 
 // Perform an Arnoldi iteration, given the iter iteration :
-// - compute the new column of the Hessenberg matrix using the previsou vectors v_0, v_1, ..., v_(iter-1)
+// - compute the new column of the Hessenberg matrix using the previous vectors v_0, v_1, ..., v_(iter-1)
 // stored into the V matrix (at V[iter])
 // - each component of this new column is a scalar product ( h_j := v_j . [A*v_(iter-1)]_updated, where
 // the update is A*v_(iter-1) <-- A*v_(iter-1) - h_i*v_i) and the last one is
@@ -634,22 +634,124 @@ void mX_matrix_utils::arnoldi_OMP(distributed_sparse_matrix* A, std::vector<std:
 }
 
 
+// Apply the Givens rotations, stored in givens_cosines and givens_sines, to col_H
+// in order to obtain the column of the R matrix (upper triangular)
+// The last Givens rotation to be applied has to be computed before its application :
+// its cosines & sines are chosen in order to nullify the last col_H value
+// Besides, all those Givens rotations are applied to the vector g (which has a size
+// greater than the number of coordinates we'll actually use)
+// The absolute value of g's last value is returned
+// BE WARY : this function is intended to be run in serial (inside a single directive) !
+double mX_matrix_utils::givens_rotations_applied(std::vector<double>& col_H, std::vector<double>& g, std::vector<double>& givens_cosines, std::vector<double>& givens_sines, int const& iter)
+{
+	// Some asserts over the parameters to protect the execution
+	assert( col_H.size() == (unsigned)(iter+1) );
+	assert( (unsigned)(iter+1) <= g.size() );
+	assert( (unsigned)iter <= givens_cosines.size() );
+	assert( (unsigned)iter <= givens_sines.size() );
+	assert( givens_cosines.size() == givens_sines.size() );
+	assert( givens_cosines.size()+1 == g.size() );
+
+	// -------- Givens rotations on H --------
+	// Rho and Sigma represent the before-last and last values of col_H
+	// but with the point of view of the Givens rotation
+	// In other words, rho will run through col_H[0], col_H[1], ..., col_H[iter-1]
+	// and sigma through col_H[1], col_H[2], ..., col_H[iter]
+	double rho, sigma;
+	// Apply all the previous Givens rotations
+	// (when iter = 1, no previous Givens rotations are already stored,
+	// so this loop isn't performed)
+	for(int i = 0; i<iter-1; i++)
+	{
+		// Take the current values of rho and sigma
+		rho = col_H[i];
+		sigma = col_H[i+1];
+		// Apply a Givens rotation
+		col_H[i] = givens_cosines[i]*rho + givens_sines[i]*sigma;
+		col_H[i+1] = -givens_sines[i]*rho + givens_cosines[i]*sigma;
+	}
+	// Take the last values of rho and sigma
+	rho = col_H[iter-1];
+	sigma = col_H[iter];
+	// Compute the new Givens rotation
+	// r is defined as : r := sqrt(rho^2 + sigma^2)
+	double r = std::sqrt(rho*rho + sigma*sigma);
+	// c_i := rho/r , s_i := sigma/r
+	givens_cosines[iter-1] = rho/r;
+	givens_sines[iter-1] = sigma/r;
+	// Apply this new rotation
+	col_H[iter-1] = givens_cosines[iter-1]*rho + givens_sines[iter-1]*sigma;
+	col_H[iter] = 0.0; // optionnal
+	// ---------------------------------------
+
+	// -------- Givens rotations on g --------
+	g[iter] = -givens_sines[iter-1]*g[iter-1];
+	g[iter-1] = givens_cosines[iter-1]*g[iter-1];
+	// ---------------------------------------
+
+	return std::abs(g[iter]);
+}
 
 
+// Solve the linear system Ry=g where R is upper triangular
+// A BLAS/Lapack routine STRSV can possibly be used instead of this function (with some modifications)
+// BE WARY : this function is intended to be run in serial (inside a single directive) !
+// BE WARY : R and g have the same size, but they are supposed to have 1 more row than y
+// (containing zeros, or something we don't care). So be wary of sizes !
+void mX_matrix_utils::solve_Ry_g(std::vector<std::vector<double>> const& R, std::vector<double> const& g, std::vector<double>& y)
+{
+	// Some asserts about sizes
+	assert( R.size() == g.size()-1 );
+	assert( R.size() == y.size() );
+	for(unsigned int i = 0; i<R.size(); i++)
+	{
+		assert( R[i].size() == i+2 );
+	}
+
+	unsigned int size = y.size();
+
+	// Actual system resolution
+	// As a back substitution, we perform our loop from the last value to the first one
+	for(int i = size-1; i>=0; i--)
+	{
+		y[i] = g[i];
+		// For a given line of y, we substract the products (matrix value)*(y associated)
+		// to the right hand side, then divide all by the diagonal value in the matrix
+		for(int j = size-1; j>i; j--)
+		{
+			y[i] -= R[j][i]*y[j];
+		}
+		y[i] /= R[i][i];
+	}
+
+}
 
 
+// Update the vector x with : x <-- x + V[col=0 : col=end-1]*y
+// It's just a gaxpy, but assuming V doesn't have the right number of columns
+void mX_matrix_utils::update_x_OMP(std::vector<double>& x, std::vector<std::vector<double>> const& V, std::vector<double> const& y)
+{
+	// Some asserts
+	for(unsigned int i = 0; i<V.size(); i++)
+	{
+		assert( x.size() == V[i].size() );
+	}
+	assert( y.size() == V.size()-1 );
 
+	// Compute the actual update using a GAXPY
+	// The work is distributed among threads, distributing
+	// according to the lines (because they are strongly probably
+	// more than columns)
+	#pragma omp for
+	for(unsigned int i = 0; i<x.size(); i++)
+	{
+		for(unsigned int j = 0; j<x.size(); j++)
+		{
+			x[i] += V[j][i]*y[j];
+		}
+	}
 
-
-
-
-
-
-
-
-
-
-
+}
 
 
 
@@ -770,126 +872,53 @@ void mX_matrix_utils::gmres_OMP(distributed_sparse_matrix* A, std::vector<double
 			// obtained with Arnoldi (we will apply some Givens rotation later to update R
 			// to become the real R, and not just H)
 			// ===========================================================================
-
 			arnoldi_OMP(A, storage.V, storage.R, iters);
 
 
-
-
-
-
-
-
-
-
-
-
-
-			// Right, Mr.GMRES has successfully updated V
-				// on the side, he has also been computing the new column of the Hessenberg matrix
-			// now he's going to get the new column of R using the current sines and cosines
-				// and he will also add a new sine and a new cosine for future use
-
-			for (int i = 0; i < iters-1; i++) // this loop MUST be done in serial (inter-dependencies with indexes) but the worker role can be acted by different thread at each iteration
-			{
-				#pragma omp single
-				{
-					double old_i = storage.R[iters-1][i];
-					double old_i_plus_one = storage.R[iters-1][i+1];
-
-					#pragma omp atomic write
-					storage.R[iters-1][i] = storage.cosines[i]*old_i + storage.sines[i]*old_i_plus_one;
-					#pragma omp atomic write
-					storage.R[iters-1][i+1] = -(storage.sines[i])*old_i + storage.cosines[i]*old_i_plus_one;
-				}
-			}
-
-			double r = std::sqrt(storage.R[iters-1][iters-1]*storage.R[iters-1][iters-1] + storage.R[iters-1][iters]*storage.R[iters-1][iters]);
-
+			// ===========================================================================
+			// Step 4 : Apply previous Givens rotations, then compute the new Givens
+			// rotation and apply it, and update the vector g
+			// There are i Givens rotations applied to the last column of R (which represents
+			// the Hessenberg matrix H for the moment) to obtain the real R column
+			// But because of the order in application of Givens rotations, this part has
+			// to be done in serial
+			// By the way, we update g applying Givens rotations too, and update the error
+			// err with the new last value of g
+			// Two vectors givens_cosines and givens_sines are updated for future use of this
+			// function (i.e. storing the computed Givens rotation)
+			// ===========================================================================
 			#pragma omp single
 			{
-				#pragma omp atomic write
-				storage.cosines[iters-1] = storage.R[iters-1][iters-1]/r;
-				#pragma omp atomic write
-				storage.sines[iters-1] = storage.R[iters-1][iters]/r;
-
-				double old_i = storage.R[iters-1][iters-1];
-				double old_i_plus_one = storage.R[iters-1][iters];
-
-				#pragma omp atomic write
-				storage.R[iters-1][iters-1] = storage.cosines[iters-1]*old_i + storage.sines[iters-1]*old_i_plus_one;
+				err = givens_rotations_applied(storage.R[iters-1], storage.g, storage.givens_cosines, storage.givens_sines, iters);
 			}
-
-			// Right, the new column of R is ready
-			// the only thing left to do is to update g
-				// which will also tell Mr.GMRES what the new error is
-
-			#pragma omp single
-			{
-				double old_g = storage.g[iters-1];
-
-				#pragma omp atomic write
-				storage.g[iters-1] = old_g*storage.cosines[iters-1];
-				#pragma omp atomic write
-				storage.g[iters] = -old_g*storage.sines[iters-1];
-			}
-			err = std::abs(storage.g[iters]);
 
 		}
 
-		// ok, so either Mr.GMRES has a solution
-			// or he's being forced to restart
-		// either way, he needs to compute x
-			// now he needs to solve Ry = g
-			// after which he will say x += (V without its last column)*y
+		// ===========================================================================
+		// Step 5 : Solve Ry=g and update x
+		// R is a upper triangular matrix with the last row full of zeros, and g a vector
+		// First, we solve R[begin:end-1]*y=g[begin:end-1] (i.e. without the last row)
+		// using a "back substitution" method
+		// Then, we update x with : x <-- x + V[col=0 : col=end-1]*y (i.e. without the
+		// last column of V)
+		// Maybe err (the norm of the residual) is small enough and a solution has been
+		// computed in x, or a restart is needed (so we'll use this new x as a x0 for
+		// the restart)
+		// ===========================================================================
 
-		for (int i = iters-1; i >= 0; i--)
+		#pragma omp single
 		{
-			#pragma omp single
-			{
-				#pragma omp atomic write
-				sum = 0.0;
-			}
-
-			#pragma omp for schedule(static,1) reduction(+ : sum)
-			for (int j = iters-1; j > i; j--)
-			{
-				sum += storage.R[j][i]*storage.y[iters-1-j];
-			}
-
-			#pragma omp single
-			{
-				#pragma omp atomic write
-				storage.y[i] = (storage.g[i] - sum)/(storage.R[i][i]);
-			}
+			solve_Ry_g(storage.R, storage.g, storage.y);
 		}
 
-		// ok, so y is ready (although it's stored upside down)
+		update_x(x, storage.V, storage.y);
 
-		#pragma omp for schedule(static,1)
-		for (int i = start_row; i <= end_row; i++)
-		{
-			double local_sum = 0.0;
-
-			for (int j = iters-1; j >= 0; j--)
-			{
-				local_sum += storage.y[iters-1-j]*storage.V[i-start_row][j];
-			}
-
-			x[i] += local_sum;
-		}
-
-		// the new x is also ready
-			// either return it or use it as an initial guess for the next restart
 	}
-
-	// if Mr.GMRES ever reaches here, it means he's solved the problem
+	// At this point, we have a solution x to the problem
 
 	if (restarts < 0)
 	{
 		restarts = 0;
 	}
-
-	//SCOREP_USER_FUNC_END();
 
 }

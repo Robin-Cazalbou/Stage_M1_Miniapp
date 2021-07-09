@@ -141,7 +141,7 @@ void print_matrix(distributed_sparse_matrix &A)
 }
 
 
-void sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double& alpha, double& beta)
+void sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double const& alpha, double const& beta)
 {
 	unsigned int start_row = A->start_row;
 	unsigned int end_row = A->end_row;
@@ -151,7 +151,7 @@ void sparse_gaxpy_OMP(distributed_sparse_matrix* A, std::vector<double> const& x
 	assert( x.size() == y.size() );
 	assert( y.size() == b.size() );
 
-	#pragma omp parallel for
+	#pragma omp for
 	for(unsigned int i = start_row; i <= end_row; i++)
 	{
 		// Compute y[i] = (A*x)[i] :
