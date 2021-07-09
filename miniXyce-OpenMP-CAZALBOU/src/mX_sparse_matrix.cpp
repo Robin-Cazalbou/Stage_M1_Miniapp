@@ -618,7 +618,7 @@ void mX_matrix_utils::arnoldi_OMP(distributed_sparse_matrix* A, std::vector<std:
 		// Compute h_i
 		scal_prod_OMP(V[i], V[iter], R[iter-1][i]);
 		// Update A*v_(iter-1) as : A*v_(iter-1) - h_i * v_i
-		saxpy_OMP(V[iter], V[i], V[iter], 1.0, -1.0);
+		saxpy_OMP(V[iter], V[i], V[iter], 1.0, -R[iter-1][i]);
 	}
 	// Compute the norm h_iter := ||A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1)||
 	// i.e. ||V[iter]|| now, after its updates
