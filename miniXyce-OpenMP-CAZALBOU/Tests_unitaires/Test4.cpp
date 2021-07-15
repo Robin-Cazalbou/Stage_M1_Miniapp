@@ -3,6 +3,7 @@
 #include <vector>
 #include <cmath>
 #include <cassert>
+#include <limits>
 #include <omp.h>
 
 
@@ -227,9 +228,16 @@ void arnoldi_OMP(distributed_sparse_matrix* A, std::vector<std::vector<double>>&
 	{
 		R[iter-1][iter] = std::sqrt(R[iter-1][iter]);
 	}
-	// Compute : ( A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1) ) / h_iter
-	// i.e. V[iter] <-- V[iter] / h_iter
-	saxpy_OMP(V[iter], std::vector<double>(V[iter].size(), 0.0), V[iter], 1.0/(R[iter-1][iter]), 0.0);
+	// BE WARY : h_iter can be 0 if we have reached the maximum dimension of the Krylov sub-space
+	// That's why we check if it's close to zero (comparing to the machine precision)
+	// Not zero : continue the iteration, Equal zero : GMRES is into its last iteration and v_iter is the vector 0
+	// but it's not a problem for the Givens rotations
+	if( R[iter-1][iter] > std::numeric_limits<double>::epsilon() )
+	{
+		// Compute : ( A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1) ) / h_iter
+		// i.e. V[iter] <-- V[iter] / h_iter
+		saxpy_OMP(V[iter], std::vector<double>(V[iter].size(), 0.0), V[iter], 1.0/(R[iter-1][iter]), 0.0);
+	}
 
 }
 

@@ -131,8 +131,8 @@ namespace mX_matrix_utils
 	void saxpy_OMP(std::vector<double> const& x, std::vector<double> const& b, std::vector<double>& y, double const& alpha, double const& beta);
 	void arnoldi_OMP(distributed_sparse_matrix* A, std::vector<std::vector<double>>& V, std::vector<std::vector<double>>& R, int const& iter);
 	double givens_rotations_applied(std::vector<double>& col_H, std::vector<double>& g, std::vector<double>& givens_cosines, std::vector<double>& givens_sines, int const& iter);
-	void solve_Ry_g(std::vector<std::vector<double>> const& R, std::vector<double> const& g, std::vector<double>& y);
-	void update_x_OMP(std::vector<double>& x, std::vector<std::vector<double>> const& V, std::vector<double> const& y);
+	void solve_Ry_g(std::vector<std::vector<double>> const& R, std::vector<double> const& g, std::vector<double>& y, int const& iter);
+	void update_x_OMP(std::vector<double>& x, std::vector<std::vector<double>> const& V, std::vector<double> const& y, int const& iter);
 
 	void gmres_OMP(distributed_sparse_matrix* A, std::vector<double> const& b, std::vector<double> const& x0, double const& tol, double &err, int const& k, std::vector<double> &x, int &iters, int &restarts, Storage_GMRES &storage);
 

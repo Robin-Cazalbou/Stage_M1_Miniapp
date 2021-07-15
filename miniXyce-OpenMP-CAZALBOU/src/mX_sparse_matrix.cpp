@@ -40,8 +40,8 @@
 #include <iostream>
 #include <algorithm>
 
-#include "mX_timer.h"
-#include "coroutines.h"
+//#include "mX_timer.h"
+//#include "coroutines.h"
 #include <cassert>
 
 // For user-instrumentation with Score-P
@@ -150,7 +150,7 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 	//SCOREP_USER_FUNC_BEGIN();
 
   // Time measured for the call of the function
-  double smvprod_time_start = mX_timer();
+  //double smvprod_time_start = mX_timer();
 
 	int start_row = A->start_row;
 	int end_row = A->end_row;
@@ -182,8 +182,8 @@ void mX_matrix_utils::sparse_matrix_vector_product(distributed_sparse_matrix* A,
 	}
 
   // End of time measuring : time spent in the function is added to the previous time spent using the coroutine_smvprod
-  double smvprod_time_end = mX_timer();
-  coroutine_smvprod(smvprod_time_end - smvprod_time_start);
+  //double smvprod_time_end = mX_timer();
+  //coroutine_smvprod(smvprod_time_end - smvprod_time_start);
 
 
 	//SCOREP_USER_FUNC_END();
@@ -196,7 +196,7 @@ double mX_matrix_utils::norm(std::vector<double> const& x)
 
 	//SCOREP_USER_FUNC_BEGIN();
 
-  double norm_time_start = mX_timer();
+  //double norm_time_start = mX_timer();
 
 
 	double res = 0.0;
@@ -206,8 +206,8 @@ double mX_matrix_utils::norm(std::vector<double> const& x)
 		res += x[i]*x[i];
 	}
 
-  double norm_time_end = mX_timer();
-  coroutine_norm(norm_time_end - norm_time_start);
+  //double norm_time_end = mX_timer();
+  //coroutine_norm(norm_time_end - norm_time_start);
 
 	//SCOREP_USER_FUNC_END();
 
@@ -225,7 +225,7 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 
 	//SCOREP_USER_FUNC_BEGIN();
 
-  double gmres_time_start = mX_timer();
+  //double gmres_time_start = mX_timer();
 
 
 	int start_row = A->start_row;
@@ -428,8 +428,8 @@ void mX_matrix_utils::gmres(distributed_sparse_matrix* A, std::vector<double> co
 	}
 
 
-  double gmres_time_end = mX_timer();
-  coroutine_gmres(gmres_time_end -gmres_time_start);
+  //double gmres_time_end = mX_timer();
+  //coroutine_gmres(gmres_time_end -gmres_time_start);
 
 	//SCOREP_USER_FUNC_END();
 
@@ -627,9 +627,16 @@ void mX_matrix_utils::arnoldi_OMP(distributed_sparse_matrix* A, std::vector<std:
 	{
 		R[iter-1][iter] = std::sqrt(R[iter-1][iter]);
 	}
-	// Compute : ( A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1) ) / h_iter
-	// i.e. V[iter] <-- V[iter] / h_iter
-	saxpy_OMP(V[iter], std::vector<double>(V[iter].size(), 0.0), V[iter], 1.0/(R[iter-1][iter]), 0.0);
+	// BE WARY : h_iter can be 0 if we have reached the maximum dimension of the Krylov sub-space
+	// That's why we check if it's close to zero (comparing to the machine precision)
+	// Not zero : continue the iteration, Equal zero : GMRES is into its last iteration and v_iter is the vector 0
+	// but it's not a problem for the Givens rotations
+	if( R[iter-1][iter] > std::numeric_limits<double>::epsilon() )
+	{
+		// Compute : ( A*v_(iter-1) - h_0*v_0 - h_1*v_1 - ... - h_(iter-1)*v_(iter-1) ) / h_iter
+		// i.e. V[iter] <-- V[iter] / h_iter
+		saxpy_OMP(V[iter], std::vector<double>(V[iter].size(), 0.0), V[iter], 1.0/(R[iter-1][iter]), 0.0);
+	}
 
 }
 
@@ -698,7 +705,7 @@ double mX_matrix_utils::givens_rotations_applied(std::vector<double>& col_H, std
 // BE WARY : this function is intended to be run in serial (inside a single directive) !
 // BE WARY : R and g have the same size, but they are supposed to have 1 more row than y
 // (containing zeros, or something we don't care). So be wary of sizes !
-void mX_matrix_utils::solve_Ry_g(std::vector<std::vector<double>> const& R, std::vector<double> const& g, std::vector<double>& y)
+void mX_matrix_utils::solve_Ry_g(std::vector<std::vector<double>> const& R, std::vector<double> const& g, std::vector<double>& y, int const& iter)
 {
 	// Some asserts about sizes
 	assert( R.size() == g.size()-1 );
@@ -708,16 +715,18 @@ void mX_matrix_utils::solve_Ry_g(std::vector<std::vector<double>> const& R, std:
 		assert( R[i].size() == i+2 );
 	}
 
-	unsigned int size = y.size();
+	// Some space in memory is ready for the maximum number of iterations, but maybe we have reached the solution before
+	// So true_size_y represent the real size we consider y to be
+	unsigned int true_size_y = iter;
 
 	// Actual system resolution
 	// As a back substitution, we perform our loop from the last value to the first one
-	for(int i = size-1; i>=0; i--)
+	for(int i = true_size_y-1; i>=0; i--)
 	{
 		y[i] = g[i];
 		// For a given line of y, we substract the products (matrix value)*(y associated)
 		// to the right hand side, then divide all by the diagonal value in the matrix
-		for(int j = size-1; j>i; j--)
+		for(int j = true_size_y-1; j>i; j--)
 		{
 			y[i] -= R[j][i]*y[j];
 		}
@@ -729,7 +738,7 @@ void mX_matrix_utils::solve_Ry_g(std::vector<std::vector<double>> const& R, std:
 
 // Update the vector x with : x <-- x + V[col=0 : col=end-1]*y
 // It's just a gaxpy, but assuming V doesn't have the right number of columns
-void mX_matrix_utils::update_x_OMP(std::vector<double>& x, std::vector<std::vector<double>> const& V, std::vector<double> const& y)
+void mX_matrix_utils::update_x_OMP(std::vector<double>& x, std::vector<std::vector<double>> const& V, std::vector<double> const& y, int const& iter)
 {
 	// Some asserts
 	for(unsigned int i = 0; i<V.size(); i++)
@@ -738,6 +747,9 @@ void mX_matrix_utils::update_x_OMP(std::vector<double>& x, std::vector<std::vect
 	}
 	assert( y.size() == V.size()-1 );
 
+	// Same remark as in the function solve_Ry_g : y has more memory space than needed
+	unsigned int true_size_y = iter;
+
 	// Compute the actual update using a GAXPY
 	// The work is distributed among threads, distributing
 	// according to the lines (because they are strongly probably
@@ -745,7 +757,7 @@ void mX_matrix_utils::update_x_OMP(std::vector<double>& x, std::vector<std::vect
 	#pragma omp for
 	for(unsigned int i = 0; i<x.size(); i++)
 	{
-		for(unsigned int j = 0; j<x.size(); j++)
+		for(unsigned int j = 0; j<true_size_y; j++)
 		{
 			x[i] += V[j][i]*y[j];
 		}
@@ -773,7 +785,7 @@ void mX_matrix_utils::gmres_OMP(distributed_sparse_matrix* A, std::vector<double
 	assert( x0.size() == x.size() );
 	assert( b.size() == x.size() );
 	assert( start_row == 0 );
-	assert( end_row-start_row+1 == x.size() );
+	assert( (unsigned int)(end_row-start_row+1) == x.size() );
 
 	// ===========================================================================
 	// Step 1 : Compute the initial error ||r0|| := ||b-A*x0||
@@ -908,10 +920,10 @@ void mX_matrix_utils::gmres_OMP(distributed_sparse_matrix* A, std::vector<double
 
 		#pragma omp single
 		{
-			solve_Ry_g(storage.R, storage.g, storage.y);
+			solve_Ry_g(storage.R, storage.g, storage.y, iters);
 		}
 
-		update_x(x, storage.V, storage.y);
+		update_x_OMP(x, storage.V, storage.y, iters);
 
 	}
 	// At this point, we have a solution x to the problem
