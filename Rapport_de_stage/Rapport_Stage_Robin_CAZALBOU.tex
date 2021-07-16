@@ -724,8 +724,111 @@ L'approche proposée est celle de la \textbf{programmation sur machine à mémoi
 
 
 
+\chapter{Refactoring OpenMP}
+
+Suite au travail précédent, je me suis engagé dans un travail de fond afin d'améliorer significativement les performances du code : réécrire la partie solveur du code en OpenMP.
+
+Lors d'une première tentative, j'ai entrepris de modifier à la volée les parties du code nécessitant des transformations. Mais devant l'instabilité du code créé (variables partagées devant être "remontées" hors de leur fonction, push\_back des vecteurs non adaptés à la mémoire partagée, ...), une compréhension plus profonde du fonctionnement de la méthode GMRES ainsi que de son implémentation dans miniXyce était primordiale.
+
+Dans ce chapitre, nous présenterons ainsi dans un premier temps les fondements mathématiques de la méthode GMRES avec redémarrage sans pré-conditionnement, en s'appuyant sur l'implémentation de miniXyce. Nous détaillerons ensuite la méthode qui a été menée pour obtenir un code OpenMP modulaire obtenant des résultats valides, au travers d'un développement guidé par les tests. Enfin, nous présenterons les mesures de temps effectuées (scalabilité et profil de comparaison avec la version séquentielle d'origine), le gain obtenu ainsi que les améliorations encore possibles (scheduling et barrières).
 
 
+\section{La méthode GMRES avec redémarrage}
+
+\subsection{Notations}
+
+Posons les bases du problèmes. Considérons un système linéaire de taille $N \in \N^*$ de la forme :
+\[
+A\vec{x} = \vec{b}
+\]
+avec $A \in \mathcal{M}_{N \times N}(\R)$ une matrice carrée creuse inversible, et $\vec{b} \in \R^N$ un vecteur. Le système possède une unique solution.\medskip
+
+Soit $\vec{x_0} \in \R^N$ un vecteur quelconque, nommé "vecteur initial". En pratique, il est courant de prendre $\vec{x_0} = \vec{0}$. Le résidu initial $\vec{r_0} := \vec{b} - A \cdot \vec{x_0}$ et sa norme $\lVert \vec{r_0} \rVert$ donnent une première idée de l'erreur commise en choisissant $\vec{x_0}$.
+
+$\vec{x_0}$ sert de point de départ à la méthode GMRES, vue comme une méthode itérative. En réalité, cette méthode converge vers une solution exacte du problème en au plus $N$ étapes, mais ce qui fait sa force est le fait qu'en pratique, seul un nombre d'étapes assez petit devant $N$ est nécessaire pour atteindre une convergence "convenable".\medskip
+
+Pour quantifier ce "convenable", nous définissons ainsi $\epsilon$ comme étant la tolérance : une solution approchée $\vec{x}$ telle que le résidu $ \vec{r}_{\vec{x}} := \lVert \vec{b} - A \cdot \vec{x} \rVert \leq \epsilon$ sera considérée comme suffisamment proche de la solution exacte.\medskip
+
+D'autre part, considérons le k-ième espace de Krylov engendré par $A$ et $\vec{r_0}$ :
+\[
+\mathcal{K}_k (A,\vec{r_0}) := \text{vec}\left\{ \vec{r_0}, A\vec{r_0}, A^2 \vec{r_0}, ..., A^k \vec{r_0} \right\} \quad\text{, avec } k \in \N
+\]
+
+\subsection{Procédé d'orthonormalisation d'Arnoldi}
+
+En pratique, les vecteurs de la base de Krylov ont tendance à être proches de la dépendance linéaire, c'est pourquoi on applique un procédé d'orthonormalisation afin d'améliorer la stabilité numérique en obtenant une base orthonormée. La méthode d'Arnoldi s'appuie sur la méthode de Gram-Schmidt pour nous fournir une telle base $\vec{v_0}, \vec{v_1}, ..., \vec{v_i}, i \in \N^*$ (avec $i \leq k$ en général, car rien ne nous assure que la dimension du k-ième espace de Krylov soit égale à $k+1$).\medskip
+
+\underline{\textbf{Remarque :}} Il existe plusieurs façons de concevoir GMRES, notamment pour trouver une base orthonormée de l'espace de Krylov, mais nous nous contenterons de notre approche.\medskip
+
+Une itération $i$ d'Arnoldi se déroule de la manière suivante :
+\begin{itemize}
+\item Pour $i=0$,
+\[
+\vec{v_0} := \frac{\vec{r_0}}{\lVert \vec{r_0} \rVert}
+\]
+\item Calculer les produits scalaires :
+\[
+\begin{array}{l}
+h_0 := <\vec{v_0},A\vec{v_{i-1}}>, \\
+h_1 := <\vec{v_1},A\vec{v_{i-1}} - h_0\vec{v_0}>, \\
+\vdots \\
+h_{i-1} := <\vec{v_{i-1}},A\vec{v_{i-1}} - h_0\vec{v_0} - h_1 \vec{v_1} - ... - h_{i-2} \vec{v_{i-2}}> \\
+\end{array}
+\]
+\item Calculer la norme :
+\[
+\begin{array}{l}
+h_i := \lVert A\vec{v_{i-1}} - h_0 \vec{v_0} - ... - h_{i-2} \vec{v_{i-2}} \rVert
+\end{array}
+\]
+\item Le nouveau vecteur $\vec{v_i}$ de la base est :
+\[
+\begin{array}{l}
+\vec{v_i} := \frac{A\vec{v_{i-1}} - h_0 \vec{v_0} - ... - h_{i-2} \vec{v_{i-2}}}{h_i}
+\end{array}
+\]
+\end{itemize}
+
+Ainsi, à chaque étape d'Arnoldi, nous agrandissons la nouvelle base orthonormée en prenant en compte un vecteur de la base d'origine supplémentaire. Dans le contexte d'une méthode itérative (donc pour laquelle on ne sait pas à l'avance le nombre d'itérations que l'on va réaliser) cette méthode est adaptée, mais comme le précise Erhel \cite{erhel95}, il y a une forte dépendance entre une étape et la suivante.\medskip
+
+D'autre part
+
+%
+%
+%
+% préciser qu'on remplit une matrice H avec les h_i calculés et que c'est une matrice d'Hessenberg
+%
+%
+%
+
+
+
+
+
+\underline{\textbf{Remarque :}} Si, à une étape $i$ donnée, le nombre de vecteurs dépasse la dimension maximale de l'espace de Krylov, alors $h_i$ sera nul. Dans ce cas, il faudra ajouter une vérification dans notre implémentation afin de ne pas créer le vecteur $\vec{v_i}$ (qui est simplement le vecteur nul). Aucune autre sécurité n'est à mettre en place puisque, comme nous allons le voir dans la section suivante, le sinus de la rotation de Givens associé sera aussi égal à $0$, ce qui garantit que nous avons atteint la solution exacte (et que GMRES est terminé). 
+
+\subsection{Factorisation QR de la matrice H et rotations de Givens}
+
+% définition d'une rotation de Givens
+% théorème sur la factorisation QR de la matrice de Hessenberg H
+% "théorème de GMRES", c'est-à-dire sur la page wikipédia de GMRES avec la minimisation du résidu, ce qu'est le vecteur g, etc.
+
+\subsection{\'Etapes de déroulement de la méthode}
+
+% marquer chacune des étapes en s'appuyant sur ce qui a été expliqué dans les sous-sections précédentes (étapes 1 à 5)
+
+
+
+\section{Méthode d'implémentation de GMRES en OpenMP}
+
+% méthodologie avec des tests uitaires, de la modularité, une structure storage qui contient des variables partagées pour les réductions et des variables dont la tailles est prévue à l'avance, etc.
+
+\section{Résultats de performances}
+
+% profil simple comparatif entre version séquentielle et version séquentielle OpenMP (amélioration rien qu'avec le if(restarts == 0)
+% courbe de scalabilité forte et faible en OpenMP + courbe de l'accélération (speedup)
+
+% peut etre nouvelle section : refaire une analyse avec MAQAO/Scalasca pour voir ce qui bloque une meilleure scalabilité + dire u'il faut supprimer des barrières implicites / rendre l'implémentation de GMRES moins séquentielle (en s'appuyant sur les travaux de Erhel) + changer le scheduling (dynamic ? static plus grand ? guided ?)
 
 
 
