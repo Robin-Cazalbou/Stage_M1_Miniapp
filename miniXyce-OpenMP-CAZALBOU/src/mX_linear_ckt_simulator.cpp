@@ -240,7 +240,7 @@ int main(int argc, char* argv[])
 			int col_idx = curr->column;
 			double value = (curr->value)/t_step;
 
-			distributed_sparse_matrix_add_to(dae->A,row_idx,col_idx,value,n,p);
+			distributed_sparse_matrix_add_to(dae->A,row_idx,col_idx,value);
 
 			curr = curr->next_in_row;
 		}
@@ -261,7 +261,7 @@ int main(int argc, char* argv[])
 	Storage_GMRES storage(k, n);
 
 
-	#pragma omp parallel num_threads(4) shared(total_gmres_res,total_gmres_iters,trans_steps,b,dae,x,RHS,t_step,tol,k,outfile,io_tend,storage,res) firstprivate(t,t_stop,iters,restarts)
+	#pragma omp parallel shared(total_gmres_res,total_gmres_iters,trans_steps,b,dae,x,RHS,t_step,tol,k,outfile,io_tend,storage,res) firstprivate(t,t_stop,iters,restarts)
 	{
 
 		while (t < t_stop)
@@ -279,7 +279,7 @@ int main(int argc, char* argv[])
 			sparse_gaxpy_OMP(dae->B, x, b, RHS, 1.0/t_step, 1.0);
 
 			// now solve the linear system just built using GMRES(k)
-			gmres_omp(dae->A,RHS,x,tol,res,k,x,iters,restarts,storage);
+			gmres_OMP(dae->A,RHS,x,tol,res,k,x,iters,restarts,storage);
 
 			#pragma omp single nowait
 			{

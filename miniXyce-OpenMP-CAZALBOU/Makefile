@@ -32,11 +32,14 @@ CXX=g++
 INSTRUMENT=
 OMP_LIB=-fopenmp
 
-#CPP_OPT_FLAGS = -Ofast -std=c++11 -march=core-avx2 -funroll-loops
-# Meilleurs pour MAQAO :
+
 #CPP_OPT_FLAGS = -Ofast -std=c++11 -ggdb -march=core-avx2 -funroll-loops
-# DEBUG
-CPP_OPT_FLAGS = -O0 -ggdb -Wall -Wextra
+
+# Debug and development
+#CPP_OPT_FLAGS = -O0 -ggdb -Wall -Wextra -DWALL
+# Performance :
+CPP_OPT_FLAGS = -Ofast -std=c++11 -march=core-avx2 -funroll-loops -DWALL
+
 
 ################### Derived Quantities (no modification required) ##############
 

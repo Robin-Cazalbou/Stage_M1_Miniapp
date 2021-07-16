@@ -132,10 +132,10 @@ mX_linear_DAE* mX_parse_utils::parse_netlist(std::string filename, int p, int pi
 				input_str >> node2;
 				input_str >> rvalue;
 
-				distributed_sparse_matrix_add_to(dae->A,node1-1,node1-1,(double)(1)/rvalue,n,p);
-				distributed_sparse_matrix_add_to(dae->A,node2-1,node2-1,(double)(1)/rvalue,n,p);
-				distributed_sparse_matrix_add_to(dae->A,node1-1,node2-1,(double)(-1)/rvalue,n,p);
-				distributed_sparse_matrix_add_to(dae->A,node2-1,node1-1,(double)(-1)/rvalue,n,p);
+				distributed_sparse_matrix_add_to(dae->A,node1-1,node1-1,(double)(1)/rvalue);
+				distributed_sparse_matrix_add_to(dae->A,node2-1,node2-1,(double)(1)/rvalue);
+				distributed_sparse_matrix_add_to(dae->A,node1-1,node2-1,(double)(-1)/rvalue);
+				distributed_sparse_matrix_add_to(dae->A,node2-1,node1-1,(double)(-1)/rvalue);
 			}
 
 			break;
@@ -154,10 +154,10 @@ mX_linear_DAE* mX_parse_utils::parse_netlist(std::string filename, int p, int pi
 				input_str >> node2;
 				input_str >> cvalue;
 
-				distributed_sparse_matrix_add_to(dae->B,node1-1,node1-1,cvalue,n,p);
-				distributed_sparse_matrix_add_to(dae->B,node2-1,node2-1,cvalue,n,p);
-				distributed_sparse_matrix_add_to(dae->B,node1-1,node2-1,-cvalue,n,p);
-				distributed_sparse_matrix_add_to(dae->B,node2-1,node1-1,-cvalue,n,p);
+				distributed_sparse_matrix_add_to(dae->B,node1-1,node1-1,cvalue);
+				distributed_sparse_matrix_add_to(dae->B,node2-1,node2-1,cvalue);
+				distributed_sparse_matrix_add_to(dae->B,node1-1,node2-1,-cvalue);
+				distributed_sparse_matrix_add_to(dae->B,node2-1,node1-1,-cvalue);
 			}
 
 			break;
@@ -179,11 +179,11 @@ mX_linear_DAE* mX_parse_utils::parse_netlist(std::string filename, int p, int pi
 				input_str >> node2;
 				input_str >> lvalue;
 
-				distributed_sparse_matrix_add_to(dae->A,k-1,node1-1,(double)(1),n,p);
-				distributed_sparse_matrix_add_to(dae->A,k-1,node2-1,(double)(-1),n,p);
-				distributed_sparse_matrix_add_to(dae->B,k-1,k-1,-lvalue,n,p);
-				distributed_sparse_matrix_add_to(dae->A,node1-1,k-1,(double)(1),n,p);
-				distributed_sparse_matrix_add_to(dae->A,node2-1,k-1,(double)(-1),n,p);
+				distributed_sparse_matrix_add_to(dae->A,k-1,node1-1,(double)(1));
+				distributed_sparse_matrix_add_to(dae->A,k-1,node2-1,(double)(-1));
+				distributed_sparse_matrix_add_to(dae->B,k-1,k-1,-lvalue);
+				distributed_sparse_matrix_add_to(dae->A,node1-1,k-1,(double)(1));
+				distributed_sparse_matrix_add_to(dae->A,node2-1,k-1,(double)(-1));
 			}
 
 			break;
@@ -203,10 +203,10 @@ mX_linear_DAE* mX_parse_utils::parse_netlist(std::string filename, int p, int pi
 				input_str >> node1;
 				input_str >> node2;
 
-				distributed_sparse_matrix_add_to(dae->A,k-1,node1-1,(double)(1),n,p);
-				distributed_sparse_matrix_add_to(dae->A,k-1,node2-1,(double)(-1),n,p);
-				distributed_sparse_matrix_add_to(dae->A,node1-1,k-1,(double)(-1),n,p);
-				distributed_sparse_matrix_add_to(dae->A,node2-1,k-1,(double)(1),n,p);
+				distributed_sparse_matrix_add_to(dae->A,k-1,node1-1,(double)(1));
+				distributed_sparse_matrix_add_to(dae->A,k-1,node2-1,(double)(-1));
+				distributed_sparse_matrix_add_to(dae->A,node1-1,k-1,(double)(-1));
+				distributed_sparse_matrix_add_to(dae->A,node2-1,k-1,(double)(1));
 
 				if ((k-1 >= start_row) && (k-1 <= end_row))
 				{
