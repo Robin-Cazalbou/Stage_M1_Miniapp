@@ -758,15 +758,16 @@ D'autre part, considérons le k-ième espace de Krylov engendré par $A$ et $\ve
 
 En pratique, les vecteurs de la base de Krylov ont tendance à être proches de la dépendance linéaire, c'est pourquoi on applique un procédé d'orthonormalisation afin d'améliorer la stabilité numérique en obtenant une base orthonormée. La méthode d'Arnoldi s'appuie sur la méthode de Gram-Schmidt pour nous fournir une telle base $\vec{v_0}, \vec{v_1}, ..., \vec{v_i}, i \in \N^*$ (avec $i \leq k$ en général, car rien ne nous assure que la dimension du k-ième espace de Krylov soit égale à $k+1$).\medskip
 
-\underline{\textbf{Remarque :}} Il existe plusieurs façons de concevoir GMRES, notamment pour trouver une base orthonormée de l'espace de Krylov, mais nous nous contenterons de notre approche.\medskip
+\underline{\textbf{Remarque :}} Il existe plusieurs façons de concevoir GMRES, notamment pour trouver une base orthonormée de l'espace de Krylov, mais nous nous contenterons de notre approche.\bigskip
 
+\underline{\textbf{Algorithme :}}
 Une itération $i$ d'Arnoldi se déroule de la manière suivante :
 \begin{itemize}
 \item Pour $i=0$,
 \[
 \vec{v_0} := \frac{\vec{r_0}}{\lVert \vec{r_0} \rVert}
 \]
-\item Calculer les produits scalaires :
+\item Pour $i \neq 0$, calculer les produits scalaires :
 \[
 \begin{array}{l}
 h_0 := <\vec{v_0},A\vec{v_{i-1}}>, \\
@@ -789,39 +790,128 @@ h_i := \lVert A\vec{v_{i-1}} - h_0 \vec{v_0} - ... - h_{i-2} \vec{v_{i-2}} \rVer
 \]
 \end{itemize}
 
-Ainsi, à chaque étape d'Arnoldi, nous agrandissons la nouvelle base orthonormée en prenant en compte un vecteur de la base d'origine supplémentaire. Dans le contexte d'une méthode itérative (donc pour laquelle on ne sait pas à l'avance le nombre d'itérations que l'on va réaliser) cette méthode est adaptée, mais comme le précise Erhel \cite{erhel95}, il y a une forte dépendance entre une étape et la suivante.\medskip
+Ainsi, à chaque étape d'Arnoldi, nous agrandissons la nouvelle base orthonormée en prenant en compte un vecteur de la base d'origine supplémentaire. Dans le contexte d'une méthode itérative (donc pour laquelle on ne sait pas à l'avance le nombre d'itérations que l'on va réaliser) cette méthode est adaptée, mais comme le précise Erhel \cite{erhel95}, il y a une forte dépendance entre une étape et la suivante. 
 
-D'autre part
+Précisons par ailleurs que la mise à jour avec les soustractions peut théoriquement se faire après le calcul de tous les $h_i$ par bilinéarité du produit scalaire et orthogonalité des $\vec{v_i}$ (les produits scalaires deviennent $h_0 = <\vec{v_0}, A \vec{v_{i-1}}>$, etc.).\medskip
 
-%
-%
-%
-% préciser qu'on remplit une matrice H avec les h_i calculés et que c'est une matrice d'Hessenberg
-%
-%
-%
+D'autre part, en stockant à chaque étape les coefficients $h_i$ dans une colonne (et en remplissant les lignes éventuellement manquantes par des zéros), nous pouvons former une matrice qui est, par construction, une matrice de Hessenberg supérieure non-carrée ($i+1$ lignes et $i$ colonnes) :
+\[
+H_i := \left(
+\begin{matrix}
+h_0^1  & h_0^2  & ... & h_0^i \\
+h_1^1  & h_1^2  & ... & h_1^i \\
+0      & h_2^2  & ... & h_2^i \\
+0      & 0      & ... & h_3^i \\
+\vdots & \vdots & ... & \vdots \\
+0      & 0      & ... & h_i^i \\
+\end{matrix}
+\right)
+\]
+où l'exposant représente l'étape $i$ d'Arnoldi à laquelle le produit scalaire a été calculé.
 
+\begin{theorem}\label{theoreme_arnoldi}
+\[
+\forall i \in \N^*, A V_i = V_{i+1} H_i \text{\quad, avec } V_i = \left( \begin{matrix}
+\vec{v_0} | \vec{v_1} | ... | \vec{v_i}
+\end{matrix} \right)
+\]
+\end{theorem}
+La démonstration se fait par récurrence sur $i$.\medskip
 
+\underline{\textbf{Remarque :}} Si, à une étape $i$ donnée, le nombre de vecteurs dépasse la dimension maximale de l'espace de Krylov, alors $h_i$ sera nul. Dans ce cas, il faudra ajouter une vérification dans notre implémentation afin de ne pas créer le vecteur $\vec{v_i}$ (qui est simplement le vecteur nul). Aucune autre sécurité n'est à mettre en place puisque, comme nous allons le voir dans la section suivante, le sinus de la rotation de Givens associée sera aussi égal à $0$, ce qui garantit que nous avons atteint la solution exacte (et que GMRES est terminé). 
 
+\subsection{Factorisation QR, rotations de Givens et minimisation des résidus}
 
+Pour la suite, nous allons avoir besoin de connaître la factorisation QR de $H_i$ car des résolutions de systèmes impliquant $H_i$ vont avoir lieu, et l'apparition d'une matrice triangulaire supérieure $R$ sera alors bénéfique.
 
-\underline{\textbf{Remarque :}} Si, à une étape $i$ donnée, le nombre de vecteurs dépasse la dimension maximale de l'espace de Krylov, alors $h_i$ sera nul. Dans ce cas, il faudra ajouter une vérification dans notre implémentation afin de ne pas créer le vecteur $\vec{v_i}$ (qui est simplement le vecteur nul). Aucune autre sécurité n'est à mettre en place puisque, comme nous allons le voir dans la section suivante, le sinus de la rotation de Givens associé sera aussi égal à $0$, ce qui garantit que nous avons atteint la solution exacte (et que GMRES est terminé). 
+Nous obtenons ainsi le théorème suivant (reformulé à partir de \cite{gmres_wikipedia}) :
 
-\subsection{Factorisation QR de la matrice H et rotations de Givens}
+\begin{theorem}
+~\\
+$\forall i \in \N^*, H_i = Q_i R_i$
+est la décomposition QR de $H_i$, avec $Q_i \in \mathcal{M}_{(i+1)\times(i+1)}$ orthogonale et $R_i \in \mathcal{M}_{(i+1)\times i}$ triangulaire supérieure (avec des coefficients positifs sur la diagonale), telles que :
+\[
+Q_i = (G_i \cdot G_{i-1} ... G_2 \cdot G_1)^T, \text{ avec $G_j$ une matrice de rotation de Givens associée aux lignes $j$ et $j+1$}
+\]
+et
+\[
+R_i = \left( \begin{matrix}
+R_{i-1} & \vec{\eta}_i \\
+0 ... 0 & 0 \\
+\end{matrix} \right), \text{ avec } \vec{\eta}_i = G_i \cdot G_{i-1} ... G_2 \cdot G_1 \cdot \left( \begin{matrix}
+h_0^i \\
+\vdots \\
+h_i^i
+\end{matrix} \right) \text{ et $R_0$ la matrice vide}
+\]
 
-% définition d'une rotation de Givens
-% théorème sur la factorisation QR de la matrice de Hessenberg H
-% "théorème de GMRES", c'est-à-dire sur la page wikipédia de GMRES avec la minimisation du résidu, ce qu'est le vecteur g, etc.
+De plus,
+\[
+G_j = \left( \begin{matrix}
+1 \\
+ & \ddots \\
+ &       & c_j    & s_j \\
+ &       & -s_j   & c_j \\
+ &       &        &     & \ddots \\
+ &       &        &     &       & 1 \\
+\end{matrix} \right), \text{ où les $c_j$ sont sur les $j$-ième et $(j+1)$-ième lignes}
+\]
+
+avec $c_i = \frac{\rho_i}{\sqrt{\rho_i^2 + \sigma_i^2}}$ est le cosinus de la matrice et $s_i = \frac{\sigma_i}{\sqrt{\rho_i^2 + \sigma_i^2}}$ est le sinus, en posant $\rho_i$ et $\sigma_i$ l'avant-dernière et la dernière composante de $G_{i-1} ... G_2 \cdot G_1 \cdot \left( \begin{matrix}
+h_0^i \\
+\vdots \\
+h_i^i
+\end{matrix} \right)$
+\end{theorem}
+\noindent La démonstration se fait aussi par récurrence (cf \cite{gmres_wikipedia}).\medskip
+
+Les dimensions des matrices de Givens ne sont pas explicitement données dans le théorème car elles sont amenées à changer au fur et à mesure des itérations, en ajoutant simplement une ligne de matrice identité. Elles conservent ainsi leur sens "physique" en tant que rotations, mais dans un sous-espace vectoriel plus grand. Les valeurs $\rho_i$ et $\sigma_i$ restent les avant-dernière et dernière valeurs dans la version restreinte du sous-espace (i.e. à l'itération $i$).
+
+\`A noter aussi que les nouveaux cosinus et sinus pour une itération $i$ ne peuvent être calculés qu'en ayant connaissance de la dernière et de l'avant-dernière composante du vecteur $G_{i-1} ... G_2 \cdot G_1 \cdot \left( \begin{matrix}
+h_0^i \\
+\vdots \\
+h_i^i
+\end{matrix} \right)$ : en effet, ils sont "choisis" de sorte à éliminer la dernière composante de ce vecteur.
+
+Par ailleurs, le théorème montre aussi que la matrice $R_i$ s'obtient à faible coût à partir de la matrice $R_{i-1}$ de l'étape précédente en accolant un nouveau vecteur, obtenu grâce à la dernière colonne de $H_i$ : nous voyons ainsi l'efficacité en termes de calculs que nous apporte cette décomposition.\bigskip
+
+\underline{\textbf{Principe de GMRES :}}
+Le principe de GMRES consiste à chercher la solution du système $A\vec{x} = \vec{b}$ en prenant comme solution approchée $\vec{x_i} := \vec{x_0} + V_i \vec{y_i}$, avec $V_i$ la matrice définie dans le théorème \ref{theoreme_arnoldi} et $\vec{y_i} \in \R^i$, de sorte à minimiser la norme du résidu : $\lVert \vec{r_i} \rVert := \lVert b - A \cdot \vec{x_i} \rVert$. Cette minimisation est un problème des moindres carrés pour lequel le théorème suivant fournit une méthode de résolution :
+
+\begin{theorem}
+\[
+\forall i \in \N^*, \lVert \vec{r_i} \rVert = \lVert H_i \vec{y_i} - \lVert \vec{r_0} \rVert e_1^i \rVert = \lVert R_i \vec{y_i} - \vec{g_i} \rVert
+\]
+
+avec : $e_1^i = \left( \begin{matrix}
+1\\
+0\\
+\vdots\\
+0
+\end{matrix} \right) \in \R^{i+1}$ et $\vec{g_i} := \lVert \vec{r_0} \rVert Q_i^T e_1^i \in \R^{i+1}$
+
+De plus, la dernière composante de $\vec{g_i}$ est égale à $\underset{\vec{r_i} \in \R^N}{\min} \lVert \vec{r_i} \rVert$.
+\end{theorem}
+
+Ainsi, résoudre le problème de minimisation revient à trouver la solution $\vec{y_i}$ du système triangulaire supérieur $\R_i \vec{y_i} = \vec{g_i}$ \underline{\textbf{en supprimant la dernière ligne du système}} (i.e. les zéros de $R_i$ et la dernière composante, censée être proche de 0, de $\vec{g_i}$).
+
+Il est important de noter que, même s'il change de taille, le vecteur $\vec{g_i}$ est facilement mis à jour à partir du vecteur précédent et des rotations de Givens : il suffit en effet d'ajouter une nouvelle composante en "clonant" la dernière et en la multipliant par $-s_i$. Il faut aussi multiplier l'ancienne dernière composante (qui est maintenant l'avant-dernière !) par $c_i$.\medskip
+
+Enfin, la dernière composante de $\vec{g_i}$ nous donne la valeur de l'erreur commise sur la solution approchée sans avoir besoin de résoudre le système triangulaire $R_i y_i = g_i$ : c'est cette remarque qui va nous permettre d'itérer un certain nombre de fois jusqu'à obtenir une valeur inférieure à notre tolérance $\epsilon$, sans perdre de temps à résoudre un système intermédiaire.
+
 
 \subsection{\'Etapes de déroulement de la méthode}
 
 % marquer chacune des étapes en s'appuyant sur ce qui a été expliqué dans les sous-sections précédentes (étapes 1 à 5)
+% expliquer aussi le principe du restart, qui n'a pas été détaillé précédemment
 
 
 
 \section{Méthode d'implémentation de GMRES en OpenMP}
 
 % méthodologie avec des tests uitaires, de la modularité, une structure storage qui contient des variables partagées pour les réductions et des variables dont la tailles est prévue à l'avance, etc.
+
+% Q_i ne se stocke qu'avec une succession de paires de coefficients (cosinus et sinus)
 
 \section{Résultats de performances}
 
