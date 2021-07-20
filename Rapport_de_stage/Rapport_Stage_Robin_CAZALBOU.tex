@@ -899,11 +899,72 @@ Il est important de noter que, même s'il change de taille, le vecteur $\vec{g_i
 
 Enfin, la dernière composante de $\vec{g_i}$ nous donne la valeur de l'erreur commise sur la solution approchée sans avoir besoin de résoudre le système triangulaire $R_i y_i = g_i$ : c'est cette remarque qui va nous permettre d'itérer un certain nombre de fois jusqu'à obtenir une valeur inférieure à notre tolérance $\epsilon$, sans perdre de temps à résoudre un système intermédiaire.
 
+\subsection{Redémarrage}
 
-\subsection{\'Etapes de déroulement de la méthode}
+Comme nous l'avons dit, GMRES convergera vers la solution exacte du problème en au plus $N$ étapes, mais en pratique, il est attendu qu'elle converge vers une valeur très proche en un nombre d'étapes petit par rapport à $N$.
 
-% marquer chacune des étapes en s'appuyant sur ce qui a été expliqué dans les sous-sections précédentes (étapes 1 à 5)
-% expliquer aussi le principe du restart, qui n'a pas été détaillé précédemment
+Cependant, il existe des situations pour lesquelles la convergence est très lente (i.e. que les résidus diminuent très peu au fil des itérations, voire ne diminuent pas) jusqu'à la dernière itération où la convergence se fait en une seule itération.
+
+Pour éviter ce genre de problèmes où les calculs successifs sur chaque étape ne nous apportent aucun gain sur les résidus, une politique de redémarrage peut être prise : elle consiste à fixer en avance une dimension maximale $k \in \N^*$ de l'espace de Krylov et à considérer que l'erreur doit devenir plus petite que la tolérance en moins de $k$ itérations.
+
+Si ce n'est pas le cas, alors on estime que le point de départ $\vec{x_0}$ était mauvais. Ainsi, on abandonne la base $\vec{v_0}, \vec{v_1}, ...$ construite et on recommence la construction avec un nouveau vecteur initial. Le choix de ce vecteur initial peut être fait à partir de $\vec{x_k}$ (l'approximation de $\vec{x}$ qui aurait été prise si le résidu était assez petit).\bigskip
+
+Choisir une valeur de $k$, assez grande pour ne pas redémarrer la méthode alors qu'une bonne solution était en vue, mais aussi assez petite pour éviter les calculs inutiles dans les situations mal engagées, nécessite une connaissance a priori de la matrice $A$ ou s'inscrit dans un choix arbitraire. Nous ne détaillerons pas davantage les méthodes de choix de ce paramètre et ferons simplement des essais lors des expérimentations. Gardons seulement en mémoire que $k$ est sensé être petit (voire très petit) devant $N$.
+
+
+\subsection{Algorithme GMRES}
+
+Maintenant que les concepts ont été formalisés mathématiquement, développons l'aspect algorithmique de la méthode GMRES. Je l'ai partagée en 5 étapes pour une meilleure compréhension :
+
+\begin{itemize}
+\item \underline{\textbf{\'Etape 1 :}} Initialisation
+
+Calcul de l'erreur initiale : $err \leftarrow \lVert \vec{r_0} \rVert$
+
+Mise à jour de la solution : $\vec{x} \leftarrow \vec{x_0}$\medskip
+
+Si $err \leq tolerance$ : fin de l'algorithme.
+
+Sinon, passer à l'étape 2.\medskip
+
+\item \underline{\textbf{\'Etape 2 :}} Début du restart
+
+Création de $\vec{v_0} \leftarrow \frac{\vec{b} - A\cdot \vec{x}}{\lVert \vec{b} - A\cdot \vec{x} \rVert}$, première colonne de la matrice $V$
+
+La première composante de $\vec{g}$ devient $\lVert \vec{r_0} \rVert$.\medskip
+
+\item \underline{\textbf{\'Etape 3 :}} Itération $i$ d'Arnoldi
+
+Calcul des composantes $h_0, h_1, ..., h_i$ de la nouvelle colonne de la matrice $H$
+
+Création du nouveau vecteur $v_i$, la nouvelle colonne de la matrice $V$\medskip
+
+\item \underline{\textbf{\'Etape 4 :}} Rotations de Givens à l'itération $i$
+
+Appliquer les rotations de Givens $G_1, G_2, ..., G_{i-1}$ (dans cet ordre) à la nouvelle colonne de $H$
+
+Calculer le cosinus et le sinus de la nouvelle rotation, puis l'appliquer à la colonne de $H$
+
+Mettre à jour $\vec{g}$ en lui appliquant la nouvelle rotation de Givens
+
+Mettre à jour $err \leftarrow | \text{dernière composante de } \vec{g} |$\medskip
+
+Si $err \leq tolerance$ ou $i > k$, passer à l'étape 5.
+
+Sinon, revenir à l'étape 3 avec $i \leftarrow i+1$.\medskip
+
+\item \underline{\textbf{\'Etape 5 :}} Mise à jour de $\vec{x}$
+
+Résoudre le système triangulaire $R \vec{y} = \vec{g}$ (sans la dernière ligne)
+
+Mise à jour de la solution : $\vec{x} \leftarrow \vec{x} + V \cdot \vec{y}$ (sans la dernière colonne de $V$)\medskip
+
+Si $err \leq tolerance$ : fin de l'algorithme
+
+Sinon, revenir à l'étape 2.
+\end{itemize}\bigskip
+
+Les matrices $H$ et $R$ sont confondues dans l'algorithme étant donné que $R$ est le résultat de l'application de rotation de Givens sur $H$ : en mémoire de l'ordinateur, elle ne seront pas stockées de façon disjointes mais $R$ "écrasera" $H$ (étant donné que seul $R$ nous intéresse).
 
 
 
