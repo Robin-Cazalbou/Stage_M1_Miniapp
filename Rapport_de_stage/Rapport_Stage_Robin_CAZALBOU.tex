@@ -968,11 +968,75 @@ Les matrices $H$ et $R$ sont confondues dans l'algorithme étant donné que $R$ 
 
 
 
-\section{Méthode d'implémentation de GMRES en OpenMP}
+\section{Implémentation de GMRES en OpenMP}
 
-% méthodologie avec des tests uitaires, de la modularité, une structure storage qui contient des variables partagées pour les réductions et des variables dont la tailles est prévue à l'avance, etc.
+\subsection{Méthode de conception adoptée}
 
-% Q_i ne se stocke qu'avec une succession de paires de coefficients (cosinus et sinus)
+Même si l'implémentation MPI proposait globalement la même structure que celle présentée, elle présentait le désavantage d'être difficile à lire et non adaptée à une réécriture en OpenMP. Plusieurs modifications significatives ont été apportées :
+
+\begin{itemize}
+\item La première d'entre elles a été de concevoir des fonctions très simples mais souvent utilisées : le produit scalaire, le GAXPY et le SAXPY. La norme étant une racine carrée d'un produit scalaire, il n'était pas nécessaire d'en faire une fonction à part. Le GAXPY est sous la forme classique proposée par la bibliothèque BLAS, à ceci près qu'il a besoin d'un réceptacle supplémentaire et ne réécrit pas sur les variables d'entrées (sauf le réceptacle prévu spécifiquement pour le résultat). Il en est de même pour le SAXPY. Par ailleurs, le GAXPY est adapté à la structure de matrice creuse présente dans le code.
+
+Ces trois fonctions sont censées être appelées dans une région parallèle par tous les threads : le partage de travail sur les réductions et les instructions For permet un gain de temps.
+
+\item 4 autres fonctions correspondant aux étapes 3, 4 et 5 sont ajoutées pour accentuer davantage la modularité du code : une itération d'Arnoldi, les applications des rotations de Givens et la mise à jour de $\vec{g}$ et de l'erreur, la résolution d'un système triangulaire, et enfin la mise à jour du vecteur $\vec{x}$.
+
+L'intérêt de ces fonctions, en plus d'une lisibilité et d'une maintenabilité augmentée du code, réside dans le fait qu'elles encapsulent les caractéristiques des paramètres. En effet, les matrices et vecteurs ont une taille déjà fixée à l'avance (cf point suivant) ce qui nécessite une manipulation attentive, dépendante de l'itération à laquelle on se trouve : par exemple, un vecteur prévu à une taille de 4 peut, dans le cas d'un système simple à résoudre, n'être exploité que jusqu'à sa 3 coordonnée. Si une boucle venait à parcourir l'ensemble du vecteur, des valeurs non-initialisées viendraient perturber le déroulement de l'algorithme (et fournir des résultats erronés).
+
+\item En complément de la conception de toutes ces fonctions, des tests unitaires ont été développés de sorte à se détacher du problème initial et s'assurer que sous les conditions seules de tailles de matrices/vecteurs, la fonction faisait ce que l'on attendait d'elle.
+
+Cette conception orientée par les tests a permis de débusquer de nombreux bugs, en complément d'outils comme GDB (GNU Debugger), et de tester le comportement sur des valeurs autres que celles fournies par les circuits de miniXyce.
+
+En complément, de très nombreux commentaires parsèment le code pour simplifier sa compréhension, et l'utilisation d'asserts (fournis par la libC) accentue la robustesse du code. Ces asserts, gourmands en temps d'exécution, peuvent être désactivés à la compilation (-DNDEBUG en flag de compilation) lorsque la validité du code est assurée.
+
+\item Afin d'éviter de travailler sur de petites régions parallèles fréquentes, l'implémentation que nous proposons est à gros grains ("coarse grain") : au niveau de la partie transitoire, une unique région parallèle est créée, et les fonctions étant appelées en séquentiel le sont à l'intérieur d'un \textit{pragma omp single}.
+
+Une écrasante majorité des variables est partagée, dont une structure \textbf{Storage\_GMRES} contenant 6 variables :
+\begin{itemize}
+\item 2 vecteurs contenant les cosinus et sinus successifs des rotations de Givens,
+\item un vecteur $\vec{g}$
+\item un vecteur $\vec{y}$
+\item et deux vecteurs de vecteurs (i.e. des matrices) $R$ et $V$
+\end{itemize}
+
+Cette structure possède deux intérêts : réunir en une seule structure des variables partagées entre les threads et ayant un statut de variable de travail, mais aussi encapsuler leur utilisation et leur initialisation (notamment leurs tailles). Ce second point est réalisé par le constructeur de la classe, qui offre l'élégance de son utilisation et la robustesse (les vecteurs ne sont pas amenés à changer de taille en cours d'exécution).
+
+Le choix de leur taille est fixé selon la variable $k$ correspondant à la dimension maximale de l'espace de Krylov : $k$ étant très supposé très petit devant $N$, même si une sur-évaluation de sa valeur a eu lieu (par exemple en prenant $k=10$ alors que la convergence s'effectue déjà à $k=3$), le gain en temps reste satisfaisant face à la perte en mémoire, qui reste très modérée.
+\end{itemize}
+
+Une remarque importante : a priori, au début de l'étape 2, nous sommes amenés à recalculer la norme du résidu au cas où nous soyons dans un redémarrage. En pratique, sur les circuits proposés, le redémarrage semblait peu présent, ce qui a motivé l'ajout d'une condition If. On vérifie si nous sommes au cœur d'un redémarrage et si ce n'est pas le cas (i.e. la première fois que l'on passe par cette étape), alors on évite ce calcul redondant en récupérant la norme au travers de $err$. En stockant $\vec{r_0}$ dans $V$ dans l'emplacement de $\vec{v_0}$ (temporairement), nous économisons tous les calculs de cette étape.
+
+
+\subsection{Complexité spatiale et temporelle}
+
+\underline{\textbf{Complexité mémoire :}}
+
+En ne considérant que la structure \textit{Storage\_GMRES} (les autres variables prenant bien moins de place), nous observons que les vecteurs des sinus et cosinus prennent chacun $k$ flottants double précision, tout comme $\vec{y}$. $\vec{g}$ en prend quant à lui un de plus.
+
+Pour les matrices, $V$ est pleine de $k+1$ vecteurs de taille $N$, alors que $R$ (qui stocke $H$ au début) est de Hessenberg rectangulaire, ce qui correspond à $1+2+ ... + k + k$ flottants double précision, soit $k \frac{k+3}{2}$ flottants.
+
+\textbf{Total :} Le stockage prend $4k+1+k \frac{k+3}{2} + N(k+1)$ flottants double précision, ce qui correspond à $\underline{\mathcal{O}(k^2 + Nk)}$.\medskip
+
+\underline{\textbf{Complexité en temps d'exécution :}}
+
+\'Etudions la complexité du code en séquentiel. L'étape 1 nécessite le calcul d'une norme, ce qui correspond à une racine carrée et à un produit scalaire ($n$ multiplications et $n-1$ additions pour deux vecteurs de taille $n$). Il y a aussi une copie de vecteur ($\vec{x} \leftarrow \vec{x_0}$) et un GAXPY avec une matrice creuse ($\vec{b} - A \cdot \vec{x}$). Nous comptons $N$ opérations pour la copie et $2N$ pour la norme (en supposant que toutes ces opérations prennent autant de temps, ce qui n'est en pratique pas le cas notamment pour la racine carrée).
+
+En notant $m$ le nombre moyen d'éléments non nuls par ligne de la matrice $A$, le GAXPY creux prend $mN$ multiplications, $(m-1)N$ additions et $N$ soustractions, soit un total de $2mN$ opérations.
+
+\textbf{Total étape 1 :} $N(2m+3)$ opérations\medskip
+
+L'étape 2 (lorsqu'elle est faite) recalcule $\vec{r_0}$ ($2mN$ opérations), sa norme ($2N$ opérations) et divise chaque composante par sa norme ($N$ opérations), ce qui équivaut à $(2m+3)N$ opérations.
+
+L'étape 3 calcule un produit matrice vecteur ($(2m-1)N$ opérations), $i$ produits scalaires ($i(2N-1)$ opérations), une racine carrée ($1$ opération) et une division d'un vecteur par sa norme ($N$ opérations).
+
+L'étape 4 calcule les nouveaux cosinus et sinus ($7$ opérations chacun), applique toutes les rotations ($6i-3$ opérations), met à jour $\vec{g}$ ($2$ opérations) et met à jour l'erreur ($1$ opération).
+
+L'étape 5 résout un système triangulaire de taille au plus $k$ ($k^2$ opérations) et un GAXPY avec la matrice de taille au plus $N$ par $k$ ($2kN$ opérations).\bigskip
+
+\textbf{Total opérations :} En comptant au maximum $k$ itérations, aucun redémarrage et $m$ éléments non nuls en moyenne par ligne de $A$, nous obtenons $\underline{\mathcal{O}(mkN+k^2 N)}$. Si $k$ est constant quel que soit la taille de $N$, GMRES est de complexité linéaire, mais il semble plus probable de considérer qu'en pratique, $k$ sera dépendant de $N$.
+
+
+
 
 \section{Résultats de performances}
 
