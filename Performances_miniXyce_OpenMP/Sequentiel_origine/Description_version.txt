@@ -1,0 +1,6 @@
+Version séquentielle d'origine (release v1.0.0 Mantevo Project)
+
+Compilé avec : gcc 9.3.0 (g++)
+Flags de compilation : -O3 -funroll-all-loops
+
+Mesures de temps : gettimeofday (précision : 1 microseconde)

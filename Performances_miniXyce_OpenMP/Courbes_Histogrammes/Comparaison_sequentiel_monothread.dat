@@ -1,0 +1,3 @@
+Version code	I/O	sigma_I/O	Transitoire	sigma_Transitoire
+Code d'origine	0.836951	0.0876593	1.77346	0.177913
+OpenMP monothread	0.827189	0.0860818	1.04008	0.106949

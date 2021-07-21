@@ -64,6 +64,9 @@
 \begin{document}
 %\maketitle
 
+% Enlever les encadrés rouges et verts autour des références/citations
+\hypersetup{hidelinks}
+
 
 % ------------- Page de garde ------------------
 \thispagestyle{empty}
@@ -1040,10 +1043,18 @@ L'étape 5 résout un système triangulaire de taille au plus $k$ ($k^2$ opérat
 
 \section{Résultats de performances}
 
-% profil simple comparatif entre version séquentielle et version séquentielle OpenMP (amélioration rien qu'avec le if(restarts == 0)
-% courbe de scalabilité forte et faible en OpenMP + courbe de l'accélération (speedup)
+% mettre la figure de Comparaison entre code origine et code Openmp monothread
+% analyse : on gagne déjà du temps, sûrement en grande partie grâce au "if" lié au fait que l'on soit dans un restart ou non, qui nous économise un produit matrice vecteur à chaque appel à GMRES (donc, beaucoup de temps)
 
-% peut etre nouvelle section : refaire une analyse avec MAQAO/Scalasca pour voir ce qui bloque une meilleure scalabilité + dire u'il faut supprimer des barrières implicites / rendre l'implémentation de GMRES moins séquentielle (en s'appuyant sur les travaux de Erhel) + changer le scheduling (dynamic ? static plus grand ? guided ?)
+% on remarque que le temps d'IO est stable (normal) mais qu'il prend beaucoup de temps et que c'est pour cela que l'on soustrait ce temps au temps transient pour avoir seulement le temps de "calcul transitoire"
+% mettre la figure de Scalabilité + de Speedup
+% analyse : speedup mauvais mais à regarder de plus près la scalabilité, c'est parce qu'il y a une augmentation du temps d'IO (comment est-ce possible ? Probablement parce que le script de lancement des 1000 répétitions fait un "bourrage" du disque dur, et qu'il n'a pas le temps de tout écrire, ou bien car il y a quelque chose que l'on a mal fait...) et aussi car il y a un écart-type très élevé (cf barres d'erreurs) sur les mesures (lié au temps d'IO instable)
+
+% idée : refaire les mesures mais en changeant le code OpenMP et celui d'origine : on ne démande plus à écrire les résultats de la solution du système Ax=b dans un fichier .prn (pour voir si cela influe sur l'instabilité) et on refait les mêmes mesures et mêmes graphiques
+% si résultats bons : parfait
+% si résultats pas bons : dire qu'il reste encore des barrières implicites, la possibilité de changer le scheduling
+
+% peut etre nouvelle section : refaire une analyse avec MAQAO/Scalasca pour voir ce qui bloque une meilleure scalabilité + dire qu'il faut supprimer des barrières implicites / rendre l'implémentation de GMRES moins séquentielle (en s'appuyant sur les travaux de Erhel) + changer le scheduling (dynamic ? static plus grand ? guided ?)
 
 
 

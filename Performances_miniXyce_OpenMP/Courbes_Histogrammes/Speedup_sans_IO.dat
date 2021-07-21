@@ -1,0 +1,5 @@
+# Nb_threads    Speedup_empirique Speedup_théorique 75%_Speedup_théorique 60%_Speedup_théorique
+1   1   1   1   1
+2   1.337117    2   1.5 1.2
+3   1.236990    3   2.25    1.8
+4   1.308935    4   3   2.4

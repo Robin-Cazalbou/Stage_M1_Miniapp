@@ -1,0 +1,7 @@
+Version parallèle OpenMP (développée par Robin CAZALBOU, juillet 2021)
+
+Compilé avec : gcc 9.3.0 (g++)
+Flags de compilation : -fopenmp -Ofast -std=c++11 -march=core-avx2 -funroll-loops -DNDEBUG
+(-DNDEBUG : désactiver les appels à assert)
+
+Mesures de temps : gettimeofday (précision : 1 microseconde)
