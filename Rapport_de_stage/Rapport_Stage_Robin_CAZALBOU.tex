@@ -1043,18 +1043,61 @@ L'étape 5 résout un système triangulaire de taille au plus $k$ ($k^2$ opérat
 
 \section{Résultats de performances}
 
-% mettre la figure de Comparaison entre code origine et code Openmp monothread
-% analyse : on gagne déjà du temps, sûrement en grande partie grâce au "if" lié au fait que l'on soit dans un restart ou non, qui nous économise un produit matrice vecteur à chaque appel à GMRES (donc, beaucoup de temps)
+Les mesures de performances de cette implémentation ont été faite sur machine personnelle, un laptop  à 4 cœurs hyperthreadés Intel i7-4700MQ (Haswell) muni de 4Go de RAM (cf figure \ref{lstopo}).
 
-% on remarque que le temps d'IO est stable (normal) mais qu'il prend beaucoup de temps et que c'est pour cela que l'on soustrait ce temps au temps transient pour avoir seulement le temps de "calcul transitoire"
-% mettre la figure de Scalabilité + de Speedup
-% analyse : speedup mauvais mais à regarder de plus près la scalabilité, c'est parce qu'il y a une augmentation du temps d'IO (comment est-ce possible ? Probablement parce que le script de lancement des 1000 répétitions fait un "bourrage" du disque dur, et qu'il n'a pas le temps de tout écrire, ou bien car il y a quelque chose que l'on a mal fait...) et aussi car il y a un écart-type très élevé (cf barres d'erreurs) sur les mesures (lié au temps d'IO instable)
+\begin{figure}[!h]
+\begin{center}
+\includegraphics[scale=0.5]{Images-Rapport/lstopo.png}
+\caption{Topologie de la machine ayant effectué les mesures}
+\label{lstopo}
+\end{center}
+\end{figure}
 
-% idée : refaire les mesures mais en changeant le code OpenMP et celui d'origine : on ne démande plus à écrire les résultats de la solution du système Ax=b dans un fichier .prn (pour voir si cela influe sur l'instabilité) et on refait les mêmes mesures et mêmes graphiques
-% si résultats bons : parfait
-% si résultats pas bons : dire qu'il reste encore des barrières implicites, la possibilité de changer le scheduling
+Le compilateur utilisé est la version 9.3.0 de GCC, prenant en charge la norme OpenMP 4.5 au minimum. La version d'origine a été compilée avec les flags d'optimisation -O3 et -funroll-all-loops (ce qui était proposé de base). La version OpenMP a quant à elle été compilée en -Ofast, avec -std=c++11 -march=core-avx2 -funroll-loops (comme conseillé par MAQAO).
 
-% peut etre nouvelle section : refaire une analyse avec MAQAO/Scalasca pour voir ce qui bloque une meilleure scalabilité + dire qu'il faut supprimer des barrières implicites / rendre l'implémentation de GMRES moins séquentielle (en s'appuyant sur les travaux de Erhel) + changer le scheduling (dynamic ? static plus grand ? guided ?)
+Les mesures de temps ont été faites à l'aide d'un wrapper \textit{mX\_timer()}, utilisant l'appel système \textit{gettimeofday} avec une précision de mesure à la microseconde près. Le circuit RLC1000 a été utilisé pour les simulations, et cela sur 500 pas de temps. Par ailleurs, 1000 répétitions de la simulation ont été réalisées afin d'obtenir des résultats stables de moyenne sur un échantillon de grande taille.\bigskip
+
+La figure \ref{comparaison_OpenMP} présente une première comparaison des temps d'exécution en séquentiel. Concernant les I/O, ils n'ont pas changés entre les deux versions, étant donné qu'aucune parallélisation n'a été proposée les concernant.
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.6]{Images-Rapport/Version_OpenMP/Comparaison_code_origine_et_OpenMP.png}
+\caption{Comparaison des temps d'exécution de la partie transitoire et des I/O entre le code d'origine (v1.0.0) et notre implémentation OpenMP}
+\label{comparaison_OpenMP}
+\end{center}
+\end{figure}
+
+Pour la partie transitoire cependant, nous gagnons presque 0.8 s en séquentiel. Cela est probablement dû à l'ajout tout simple d'une vérification en début de GMRES : afin d'éviter de recalculer $\vec{r_0}$ et sa norme, nous vérifions si nous sommes dans un redémarrage. Nous observons bien qu'en pratique, les redémarrages sur nos circuits sont peu fréquents.\medskip
+
+Afin d'étudier la scalabilité de la partie parallélisée, il semblait plus judicieux de ne présenter l'évolution du temps d'exécution que sur la partie transitoire, à laquelle on soustrait le temps d'I/O (non compressible), ainsi que l'accélération associée, cette dernière étant calculée par $\frac{t_{sequentiel}}{t_{X threads}}$.
+
+Après analyse des premières courbes obtenues, la première remarque a concerné les écarts-type relevés : ils représentaient une part non-négligeable des écarts entre les différentes moyennes et étaient de ce fait trop importants pour permettre une conclusion correcte.
+
+Partant de ce constat, j'ai pensé que les I/O ayant seulement été soustrait au résultat pouvaient avoir une influence sur le déroulement du code : les 1000 répétitions étant faites par l'intermédiaire d'un script Bash, peut-être pouvaient-ils "noyer" la bande passante ? Des nouvelles mesures après suppression des I/O du code ont relevées le même problème.
+
+Une lecture attentive des données brutes a néanmoins montré qu'à partir d'un certain nombre d'itérations (non constant), les temps mesurés grandissaient fortement (et pouvaient même doubler !). Je n'ai pas su identifier l'origine de ce problème (cache, RAM, I/O ou erreur dans la manipulation du script ?). \`A défaut, seules les 100 premières répétitions ont été conservées, ce qui a eu pour effet de nettement réduire les écarts-type.\bigskip
+
+\begin{figure}
+\begin{center}
+\includegraphics[scale=0.65]{Images-Rapport/Version_OpenMP_V3/Scalabilité_OpenMP_V3.png}
+\includegraphics[scale=0.65]{Images-Rapport/Version_OpenMP_V3/Accélération_OpenMP_V3.png}
+\caption{\'Evolution du temps de la partie transitoire sans prendre en comptre les I/O (en haut) en fonction du nombre de threads mis en jeu. Accélération associée du code (en bas).}
+\label{scalabilité_speedup}
+\end{center}
+\end{figure}
+
+Les résultats finaux sont présentés en figure \ref{scalabilité_speedup}. Le code passe à l'échelle en réduisant son temps d'exécution suivant le nombre de threads mis en jeu. L'accélération reste néanmoins très en deçà de l'accélération théorique, avec seulement 75\% à 2 threads, et un peu plus de 50\% threads.\medskip
+
+Plusieurs facteurs peuvent expliquer cette mauvaise scalabilité :
+\begin{itemize}
+\item tout d'abord, la machine cible n'exploite peut-être pas pleinement les performances du code, du fait d'une mémoire vive assez réduite, d'I/O très lents (présence d'un HDD) et d'une architecture plutôt ancienne (2013) pour laquelle nous n'employons les caches et l'hyperthreading au mieux. L'étrangeté de l'augmentation du temps d'exécution après un trop grand nombre de répétitions est peut-être lié au matériel. Des essais sur une autre machine seraient nécessaires.
+\item de nombreuses synchronisations sont encore présentes dans l'implémentation. Les instructions For présentent des barrières implicites qu'il faudrait étudier en détails pour éliminer celles qui ne sont pas essentielles.
+\item le scheduling sur le partage de travail a montré quelques sensibilités suivant le mode (static, dynamic ou guided) et la taille des chunks. Des essais faisant varier ces paramètres permettraient de trouver une situation optimale (qui sera probablement fortement dépendante de la matrice $A$).
+\item les travaux de Erhel \cite{erhel95} ont montré une excellente scalabilité en distribué, en s'appuyant sur une implémentation ayant un plus fort degré de parallélisation (le graphe de dépendance est moins linéaire). Une telle implémentation en mémoire partagée porterait-elle ses fruits ?
+\end{itemize}
+
+
+% refaire une analyse avec MAQAO/Scalasca pour voir ce qui bloque une meilleure scalabilité
 
 
 

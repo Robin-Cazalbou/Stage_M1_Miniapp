@@ -1,0 +1,19 @@
+reset
+
+set ytics nomirror
+set xtics nomirror
+
+set grid
+
+set xlabel "Nombre de threads OpenMP"
+set ylabel "Temps (en s)"
+set style line 1 linecolor rgb '#0060ad' linetype 1 linewidth 2 pointtype 2 pointsize 1.5
+
+
+set title "Scalabilité du code OpenMP" font "Helvetica,14"
+
+set xrange [0.5:4.5]
+set xtics 1
+set ytics 0.01
+
+plot "Scalabilite_transient_sans_IO.dat" with linespoints linestyle 1 title "Temps moyen transitoire sans I/O", "" with errorbars notitle

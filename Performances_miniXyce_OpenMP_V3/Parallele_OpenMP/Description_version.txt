@@ -1,0 +1,7 @@
+Version séquentielle d'origine (release v1.0.0 Mantevo Project)
+Modification : suppression des deux zones I/O (lignes 186-217 et 292-309) + variable outfile et son close + mX_params : last_used non ressorti + YAML non écrit sur la sortie standard
+
+Compilé avec : gcc 9.3.0 (g++)
+Flags de compilation : -O3 -funroll-all-loops
+
+Mesures de temps : gettimeofday (précision : 1 microseconde)

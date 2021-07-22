@@ -1,0 +1,20 @@
+reset
+
+set ytics nomirror
+set xtics nomirror
+
+set grid ytics
+
+set yrange [0:*]
+
+set style data histogram
+set style histogram gap 1 errorbars
+
+set style fill solid border rgb "black"
+set auto x
+set datafile separator "\t"
+
+set title "Comparaison code d'origine et version OpenMP" font "Helvetica,14"
+set ylabel "Temps moyen d'exécution (en s)"
+
+plot 'Comparaison_sequentiel_monothread.dat' using 2:3:xtic(1) title col(2) lc "cyan"

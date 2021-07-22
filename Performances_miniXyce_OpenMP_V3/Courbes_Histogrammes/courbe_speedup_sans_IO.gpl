@@ -1,0 +1,23 @@
+reset
+
+set ytics nomirror
+set xtics nomirror
+
+set grid
+
+set xlabel "Nombre de threads OpenMP"
+set ylabel "Accélération (t_{séquentiel} / t_{parallèle})"
+#set style line 1 linecolor rgb '#0060ad' linetype 1 linewidth 2 pointtype 7 pointsize 1.5
+
+
+set title "Accélération du code OpenMP" font "Helvetica,14"
+
+set xrange [0.5:4.5]
+set yrange [0.5:5]
+set xtics 1
+#set ytics 0.01
+
+plot "Speedup_sans_IO.dat" using 1:2 with linespoints linestyle 1 title "Accélération empirique", \
+  "Speedup_sans_IO.dat" using 1:3 with linespoints linestyle 2 title "Accélération théorique", \
+  "Speedup_sans_IO.dat" using 1:4 with linespoints linestyle 3 title "75% Accélération théorique", \
+  "Speedup_sans_IO.dat" using 1:5 with linespoints linestyle 4 title "60% Accélération théorique"
