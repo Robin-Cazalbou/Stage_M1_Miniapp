@@ -138,34 +138,35 @@
 
 
 \newpage
-\tableofcontents
+\begin{KeepFromToc}
+  \tableofcontents
+\end{KeepFromToc}
 
 
 
 \begin{vplace}[0.5]
 
-\chapter*{Remerciements}
-\addcontentsline{toc}{chapter}{Remerciements}
-
-% texte à écrire ici
-% fusionner remerciements et introduction
-
-
-
 
 \chapter*{Introduction}
 \addcontentsline{toc}{chapter}{Introduction}
 
-% texte à écrire ici
 Ce rapport tient compte des travaux que j'ai réalisé durant mon stage optionnel de fin de master 1 au centre Borelli de l'université Paris Saclay et de l'ENS Paris Saclay. Il fut réalisé sur la période du 17 mai au 28 août 2021, sous la tutelle de M. Fikri HAFID, chercheur au laboratoire du centre Borelli. \bigskip
-~\bigskip
 
-% travail en distanciel et en présentiel ?
-% ressenti de ce que j'ai pu faire globalement pendant ce stage (premier résumé)
+Le cœur de mon travail a consisté en l'étude des mini-applications du point de vue du Calcul Haute Performance. En premier lieu, plusieurs recherches bibliographiques m'ont permis de faire un court état de l'art des mini-applications. J'ai ensuite fais le choix d'étudier l'une d'entre elles en particulier, ainsi que l'application dont elle est le proxy, et de fournir une comparaison des profils de performance des deux applications.
 
-Le cœur de mon travail a consisté en l'étude des mini-applications d'une point de vue Calcul Haute Performance.
+La suite de mon stage s'est axée sur l'optimisation de la mini-application. De premières études plus approfondies (notamment grâce à l'outil MAQAO) m'ont permis de cerner les principaux problèmes à l'origine des ralentissements de l'exécution du code et de fournir deux optimisations MPI, dont la première a été fortement efficace.
 
-% ce que j'ai appris
+Une seconde étude a mené à une réflexion sur le mode de programmation distribué, ainsi qu'à une description mathématique rigoureuse du solveur GMRES utilisé dans la mini-application. Cela a engendré une reconception en OpenMP dont les résultats ont été satisfaisants, notamment car le temps d'exécution réduisait enfin lorsque le nombre de threads augmentait.\bigskip
+
+L'ensemble des codes et des résultats de mesures sont disponibles sur mon dépôt Github, à l'adresse :
+\url{https://github.com/Robin-Cazalbou/Stage_M1_Miniapp}\bigskip
+
+La structure de ce rapport suit, le plus fidèlement possible et de façon temporelle, l'évolution du code et de mes connaissances tout au long de ce stage. L'ensemble des mesures réalisées et idées proposées figurent dans ce rapport, même lorsqu'elles n'ont pas porté leurs fruits en termes d'optimisation, afin de montrer le cheminement qui a été le mien car, comme le disait Aristote : \medskip
+
+\begin{center}
+\textit{La science consiste à passer d'un étonnement à un autre.}
+\end{center}
+
 
 
 \end{vplace}
@@ -1097,29 +1098,6 @@ Plusieurs facteurs peuvent expliquer cette mauvaise scalabilité :
 \end{itemize}
 
 
-% refaire une analyse avec MAQAO/Scalasca pour voir ce qui bloque une meilleure scalabilité
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1134,22 +1112,18 @@ Plusieurs facteurs peuvent expliquer cette mauvaise scalabilité :
 \addcontentsline{toc}{chapter}{Conclusion}
 
 
+Tout au long de ce stage, j'ai pu mettre en pratique mes connaissances et compétences dans le domaine du HPC afin d'étudier, d'analyser et d'optimiser une application de calcul scientifique. \'Evidemment, la portée du travail sur cette miniapp est faible, tant le nombre de publications liées au solveur GMRES et à ses différentes implémentations est grand. Cependant, même modestement, nous avons apporté au domaine du HPC :
+\begin{itemize}
+\item une implémentation OpenMP fonctionnelle et scalable. Les résultats obtenus suggèrent que des améliorations à un niveau plus fin (exploitation des caches et des pages mémoires, scheduling variés, barrières implicites) pourraient améliorer encore davantage les temps d'exécution.
+\item une optimisation par bufferisation, qui devrait être systématique dans de tels cas, au vu du nombre exponentiel de messages qui seraient envoyés avec la méthode originelle.
+\item une seconde optimisation (utilisant les échanges non-bloquants) qui, malgré ses mauvais résultats, semble théoriquement intéressante sur une architecture adaptée.
+\item des profils de performance montrant les faibles sur lesquelles il faut fournir un travail plus spécifique, comme les I/O ou le déroulement de GMRES (qui présente trop d'interdépendances dans son déroulement et un degré de parallélisme relativement faible).
+\end{itemize}\bigskip
+
+Par ailleurs, ce stage a aussi été pour moi une source d'apprentissage et d'expérimentations. En effet, la méthodologie de développement logiciel orientée par les tests, de façon modulaire, en automatisant les lancements de mesures et en exploitant les APIs MPI et OpenMP fut très enrichissante. J'ai pu mettre en pratique de nombreuses choses dont j'avais déjà connaissance, mais aussi découvrir une nouvel outil (Scalasca), une nouvelle méthode de résolution de système linéaire (GMRES), des subtilités d'écriture en MPI et OpenMP, les limites du parallélisme avec ces APIs, et surtout une application concrète de calcul scientifique issue d'un groupe de recherche orienté vers les performances de code.
 
 \end{vplace}
 
-
-
-
-
-
-
-\begin{vplace}
-\chapter*{Annexe}
-\addcontentsline{toc}{chapter}{Annexe}
-
-% texte à écrire ici
-
-\end{vplace}
 
 
 
